@@ -1,0 +1,330 @@
+(footprint "UJCHP23SMTTR"
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(descr "UJC-HP2-3-SMT-TR-1")
+	(tags "Connector")
+	(property "Reference" "J**"
+		(at 0 -0.303 0)
+		(layer "F.SilkS")
+		(uuid "d144f58d-75ee-477f-9efa-ea7cc6114823")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.254)
+			)
+		)
+	)
+	(property "Value" "UJCHP23SMTTR"
+		(at 0 -0.303 0)
+		(layer "F.SilkS")
+		(hide yes)
+		(uuid "da5b8d57-8ca3-4cdf-9d98-2221b40b2325")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.254)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "f80eeefd-82b8-45fb-8296-052cb4910574")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "cd85a951-0843-4012-8ffa-205aad9447f1")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_line
+		(start -4.47 -1.6)
+		(end -4.47 -0.6)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "caaeb26a-1a00-47d2-865e-949d492685fc")
+	)
+	(fp_line
+		(start -4.47 2.2)
+		(end -4.47 3.4)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "af65a14b-5d14-4c4c-9141-fcc6c8a00495")
+	)
+	(fp_line
+		(start -4.47 3.4)
+		(end 4.47 3.4)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "8b8ec1b9-7f19-4cd8-8fc5-7c5d9f842ef8")
+	)
+	(fp_line
+		(start -0.5 -4.5)
+		(end -0.5 -4.5)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "aafc4316-75bd-4e0c-887c-c62ba8327aa6")
+	)
+	(fp_line
+		(start -0.5 -4.4)
+		(end -0.5 -4.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "9caa8491-2f90-4cb9-aa28-1a04ccfe2a77")
+	)
+	(fp_line
+		(start 4.47 -1.6)
+		(end 4.47 -0.6)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "a314f9c6-2d74-41cd-afbf-377f86394541")
+	)
+	(fp_line
+		(start 4.47 3.4)
+		(end 4.47 2.2)
+		(stroke
+			(width 0.2)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "2b833654-d85d-4eaf-afc6-23ba30ecb83a")
+	)
+	(fp_arc
+		(start -0.5 -4.5)
+		(mid -0.45 -4.45)
+		(end -0.5 -4.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "dcbf4662-9329-4575-9dc7-126868d0e64b")
+	)
+	(fp_arc
+		(start -0.5 -4.4)
+		(mid -0.55 -4.45)
+		(end -0.5 -4.5)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.SilkS")
+		(uuid "be49981e-fa0b-4653-8986-ce6250fddc48")
+	)
+	(fp_line
+		(start -6.325 -5.005)
+		(end 6.325 -5.005)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "45e0b249-c958-4abd-911d-1257b787fb09")
+	)
+	(fp_line
+		(start -6.325 4.4)
+		(end -6.325 -5.005)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "fc25824a-2aaf-4666-8da9-c2b49fe072bd")
+	)
+	(fp_line
+		(start 6.325 -5.005)
+		(end 6.325 4.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "aee1cf45-3aaf-4959-a093-fce4df8f6c88")
+	)
+	(fp_line
+		(start 6.325 4.4)
+		(end -6.325 4.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.CrtYd")
+		(uuid "c7cb13bb-540f-4b02-bca6-138612ccd9a6")
+	)
+	(fp_line
+		(start -4.47 -3.4)
+		(end 4.47 -3.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "f878b238-9a3e-43e1-866e-f6a2f018fa76")
+	)
+	(fp_line
+		(start -4.47 3.4)
+		(end -4.47 -3.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "e5c7b2c3-c1a7-4fcc-9a19-50c57e0a19d3")
+	)
+	(fp_line
+		(start 4.47 -3.4)
+		(end 4.47 3.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "d4421a81-9f6b-415c-bbfe-6b54818c21ea")
+	)
+	(fp_line
+		(start 4.47 3.4)
+		(end -4.47 3.4)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(layer "F.Fab")
+		(uuid "f9d45ac0-0317-4583-ba94-8f7c3610afd5")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 -0.303 0)
+		(layer "F.Fab")
+		(uuid "457e0e03-a9bb-482f-83be-0f2b66a2a805")
+		(effects
+			(font
+				(size 1.27 1.27)
+				(thickness 0.254)
+			)
+		)
+	)
+	(pad "A5" smd rect
+		(at -0.5 -3.29)
+		(size 0.7 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "dd321528-c87c-4b17-a1e9-7b132bdfe57b")
+	)
+	(pad "A9" smd rect
+		(at 1.52 -3.29)
+		(size 0.76 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "892433c8-b974-4a12-b3d0-0eda7ce39335")
+	)
+	(pad "A12" smd rect
+		(at 2.75 -3.29)
+		(size 0.8 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "83353d1c-4070-40cb-a813-65066fafbb4a")
+	)
+	(pad "B5" smd rect
+		(at 0.5 -3.29)
+		(size 0.7 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "05e2ac78-9e60-4c3b-9eaf-e4db31d511d0")
+	)
+	(pad "B9" smd rect
+		(at -1.52 -3.29)
+		(size 0.76 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "ec7b392e-ca97-4f91-89dd-c0106e674122")
+	)
+	(pad "B12" smd rect
+		(at -2.75 -3.29)
+		(size 0.8 1.4)
+		(layers "F.Cu" "F.Mask" "F.Paste")
+		(uuid "3bfbe50d-69cf-4bb5-8bae-68cf44ac68d1")
+	)
+	(pad "MH1" thru_hole circle
+		(at -4.32 -3)
+		(size 1.7 1.7)
+		(drill 1.34)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "0a6b4e14-037f-4f30-a25a-cf3d9b2b0e8c")
+	)
+	(pad "MH2" thru_hole circle
+		(at 4.32 -3)
+		(size 1.7 1.7)
+		(drill 1.34)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "7f25550b-bd59-44d4-a854-c83b5dfd2b27")
+	)
+	(pad "MH3" thru_hole circle
+		(at -4.32 0.8)
+		(size 2.01 2.01)
+		(drill 1.34)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "2ae14d8e-7cdc-4780-97b5-c99e694f3ce3")
+	)
+	(pad "MH4" thru_hole circle
+		(at 4.32 0.8)
+		(size 2.01 2.01)
+		(drill 1.34)
+		(layers "*.Cu" "*.Mask")
+		(remove_unused_layers no)
+		(uuid "4860cf1e-0bfe-4c62-afc5-9facd1d4b826")
+	)
+	(embedded_fonts no)
+	(model "UJC-HP2-3-SMT-TR.stp"
+		(offset
+			(xyz 0 0 0)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz 0 0 0)
+		)
+	)
+	(model "${KIPRJMOD}/Symbols/UJC-HP2-3-SMT-TR.stp"
+		(offset
+			(xyz 20 2 1.5)
+		)
+		(scale
+			(xyz 1 1 1)
+		)
+		(rotate
+			(xyz -180 -0 90)
+		)
+	)
+)

@@ -1,0 +1,92 @@
+(footprint "AKYGA_LP403035 "
+	(version 20241229)
+	(generator "pcbnew")
+	(generator_version "9.0")
+	(layer "F.Cu")
+	(property "Reference" "Li-Pol"
+		(at 0 -0.5 0)
+		(unlocked yes)
+		(layer "B.SilkS")
+		(uuid "cfed2602-a2b2-4895-b692-27ef799c097d")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.1)
+			)
+		)
+	)
+	(property "Value" "3.7V / 400mAh"
+		(at 0 1 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "74c5530a-8a3a-4d1d-b7b8-44ebd4966b0a")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Datasheet" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "bca65b9a-89d6-41f2-98ea-35fbde555edf")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(property "Description" ""
+		(at 0 0 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(hide yes)
+		(uuid "0c551587-f051-4a8c-b578-e823ddda183e")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(attr through_hole)
+	(fp_rect
+		(start -15.502004 -18.757355)
+		(end 15.45 -13.757355)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "B.SilkS")
+		(uuid "8335e6ca-f379-418b-9588-963430f314aa")
+	)
+	(fp_rect
+		(start -15.502004 -18.757355)
+		(end 15.497996 18.742645)
+		(stroke
+			(width 0.1)
+			(type solid)
+		)
+		(fill no)
+		(layer "B.SilkS")
+		(uuid "9fe2aa58-2104-4114-82e6-e6c73792c231")
+	)
+	(fp_text user "${REFERENCE}"
+		(at 0 2.5 0)
+		(unlocked yes)
+		(layer "F.Fab")
+		(uuid "897916c5-139c-424f-9872-c74769151560")
+		(effects
+			(font
+				(size 1 1)
+				(thickness 0.15)
+			)
+		)
+	)
+	(embedded_fonts no)
+)

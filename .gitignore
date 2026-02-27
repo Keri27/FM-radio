@@ -1,0 +1,13 @@
+# Dočasné a pracovní soubory
+*.kicad_prl
+*-bak
+_autosave-*
+*.tmp
+
+# Výstupy (Gerbery, PDF atd.)
+# Pokud používáte jiné složky, přidejte je sem
+/plots/
+/gerbers/
+
+# Cache a náhledy
+fp-info-cache
