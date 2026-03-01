@@ -13432,7 +13432,7 @@
 		(dnp no)
 		(uuid "6d873761-78b7-42ee-8ad3-eb1351711ab5")
 		(property "Reference" "Rsen1"
-			(at 156.464 72.39 0)
+			(at 154.178 72.136 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13441,7 +13441,7 @@
 			)
 		)
 		(property "Value" "100k"
-			(at 156.464 74.93 0)
+			(at 154.178 74.676 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -15505,7 +15505,7 @@
 		(on_board yes)
 		(dnp no)
 		(uuid "a6bb24ff-23c9-4244-ae8c-64b5993ac164")
-		(property "Reference" "Cb7"
+		(property "Reference" "Cs7"
 			(at 137.414 188.468 0)
 			(effects
 				(font
@@ -15559,7 +15559,7 @@
 		(instances
 			(project "FM_radio"
 				(path "/410b55e1-3407-41ac-ad87-1a6089b8359d"
-					(reference "Cb7")
+					(reference "Cs7")
 					(unit 1)
 				)
 			)
