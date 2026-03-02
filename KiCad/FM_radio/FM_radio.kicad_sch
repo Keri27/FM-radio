@@ -971,6 +971,167 @@
 			)
 			(embedded_fonts no)
 		)
+		(symbol "Device:C_Polarized"
+			(pin_numbers
+				(hide yes)
+			)
+			(pin_names
+				(offset 0.254)
+			)
+			(exclude_from_sim no)
+			(in_bom yes)
+			(on_board yes)
+			(property "Reference" "C"
+				(at 0.635 2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Value" "C_Polarized"
+				(at 0.635 -2.54 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(justify left)
+				)
+			)
+			(property "Footprint" ""
+				(at 0.9652 -3.81 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Datasheet" "~"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "Description" "Polarized capacitor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_keywords" "cap capacitor"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(property "ki_fp_filters" "CP_*"
+				(at 0 0 0)
+				(effects
+					(font
+						(size 1.27 1.27)
+					)
+					(hide yes)
+				)
+			)
+			(symbol "C_Polarized_0_1"
+				(rectangle
+					(start -2.286 0.508)
+					(end 2.286 1.016)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.778 2.286) (xy -0.762 2.286)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(polyline
+					(pts
+						(xy -1.27 2.794) (xy -1.27 1.778)
+					)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type none)
+					)
+				)
+				(rectangle
+					(start 2.286 -0.508)
+					(end -2.286 -1.016)
+					(stroke
+						(width 0)
+						(type default)
+					)
+					(fill
+						(type outline)
+					)
+				)
+			)
+			(symbol "C_Polarized_1_1"
+				(pin passive line
+					(at 0 3.81 270)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "1"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+				(pin passive line
+					(at 0 -3.81 90)
+					(length 2.794)
+					(name "~"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+					(number "2"
+						(effects
+							(font
+								(size 1.27 1.27)
+							)
+						)
+					)
+				)
+			)
+			(embedded_fonts no)
+		)
 		(symbol "Device:D_TVS"
 			(pin_numbers
 				(hide yes)
@@ -9369,7 +9530,7 @@
 		(uuid "f846eb34-6c00-4c4d-b584-f9b71dbd5f0b")
 	)
 	(symbol
-		(lib_id "Device:C")
+		(lib_id "Device:C_Polarized")
 		(at 74.93 161.29 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -9413,7 +9574,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Unpolarized capacitor"
+		(property "Description" "Polarized capacitor"
 			(at 74.93 161.29 0)
 			(effects
 				(font
@@ -13570,7 +13731,7 @@
 		(dnp no)
 		(uuid "731b658c-7269-4b3e-8423-99f867e4f6e7")
 		(property "Reference" "Dant1"
-			(at 140.97 71.12 0)
+			(at 140.97 72.39 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -13722,7 +13883,7 @@
 				(justify left)
 			)
 		)
-		(property "Footprint" "Footprints:MLG1005"
+		(property "Footprint" "Inductor_SMD:L_0603_1608Metric_Pad1.05x0.95mm_HandSolder"
 			(at 154.94 162.56 0)
 			(effects
 				(font
@@ -14446,7 +14607,7 @@
 		)
 	)
 	(symbol
-		(lib_id "Device:C")
+		(lib_id "Device:C_Polarized")
 		(at 140.97 163.83 0)
 		(unit 1)
 		(exclude_from_sim no)
@@ -14490,7 +14651,7 @@
 				(hide yes)
 			)
 		)
-		(property "Description" "Unpolarized capacitor"
+		(property "Description" "Polarized capacitor"
 			(at 140.97 163.83 0)
 			(effects
 				(font
