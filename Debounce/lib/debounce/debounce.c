@@ -8,27 +8,26 @@
 
 volatile uint8_t debounceTimer = 0;
 
+Button_t buttons[3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}; // Array of 3 structures
+
 /* Debounce function for both edges - returns new (debounced) value after X stable states of button */
-uint8_t Debounce(uint8_t currentSample)
+uint8_t Debounce(Button_t *btn, uint8_t currentSample)
 {
-    static uint8_t oldDebounce = 0;
-    static uint8_t lastSample = 0;
-    static uint8_t debounceCount = 0;
 
     // If timer overflowed or first cycle (PCINT)
     if (debounceTimer == 1) 
     {
         debounceTimer = 0;
 
-        if (currentSample == lastSample)
+        if (currentSample == btn->lastSample)
         {       
-            debounceCount++;
+            btn->debounceCount++;
 
             // DEBOUNCE_TRESHOLD x 4 ms = x ms of stable state
-            if (debounceCount >= SAMPLE_TRESHOLD)
+            if (btn->debounceCount >= SAMPLE_TRESHOLD)
             {
-                oldDebounce = currentSample; // Update oldDebounce
-                debounceCount = 0;
+                btn->stableState = currentSample; // Update stableState
+                btn->debounceCount = 0;
 
                 tim0_stop();
                 tim0_ovf_disable();
@@ -36,13 +35,13 @@ uint8_t Debounce(uint8_t currentSample)
         }
         else // sample changed
         {
-            debounceCount = 1;
+            btn->debounceCount = 1;
         }
 
-        lastSample = currentSample;
+        btn->lastSample = currentSample;
     }
 
-    return oldDebounce; // Return (old) debounced button state
+    return btn->stableState; // Return (old) debounced button state
 }
 
 /* Interrupt service routine TIMER0 overflow */
