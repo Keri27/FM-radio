@@ -12,8 +12,8 @@
 #define LED PD6
 #define UP PD2
 
-uint8_t buttonPD2isPressed = 0;
-volatile uint8_t nonDebouncedPD2Pressed = 0;
+uint8_t PD2Pressed = 0;
+volatile uint8_t PD2Sample = 0;
 
 uint8_t changeColor = 1;
 
@@ -39,15 +39,15 @@ int main(void)
 
   while (1)
   {
-    buttonPD2isPressed = Debounce(nonDebouncedPD2Pressed);
+    PD2Pressed = Debounce(PD2Sample);
 
-    if (buttonPD2isPressed && changeColor)
+    if (PD2Pressed && changeColor)
     {
       gpio_toggle(&PORTD, LED);
       changeColor = 0;
     }
     /* Button released */
-    else if (!buttonPD2isPressed && !changeColor)
+    else if (!PD2Pressed && !changeColor)
     {
       //buttonReleased = 0; // Force "0" (after buttonReleased run this only once)
       changeColor = 1;
@@ -59,17 +59,21 @@ int main(void)
 ISR(PCINT2_vect)
 {
   uint8_t newD = PIND; // update current state of port D
+
+  TCNT0 = 0; // Reset timer0
+  tim0_ovf_4ms();
+  tim0_ovf_enable();
   debounceTimer = 1;
 
   // PD2 (PCINT18) pressed
   if ((newD & (1 << PD2)) == 0 &&
       (oldD & (1 << PD2)) != 0)
   { // falling edge detection (pull-up)  1 \___ 0
-    nonDebouncedPD2Pressed = 1;
+    PD2Sample = 1;
   }
   else // PDx release - if any button released reset everything - rising edge detection 0 ___/ 1
   {
-    nonDebouncedPD2Pressed = 0;
+    PD2Sample = 0;
     //buttonReleased = 1;
   }
 
