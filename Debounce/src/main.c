@@ -8,11 +8,9 @@
 #include "timer.h"
 #include "debounce.h"
 
-#define UP PD2
-#define DOWN PD3
-#define SEEK PD4
 #define LED PD6
 
+/* For clarity (not meant to be changed)*/
 #define SEEK_IDX 0
 #define UP_IDX 1
 #define DOWN_IDX 2
