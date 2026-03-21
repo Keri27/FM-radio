@@ -8,21 +8,16 @@
 #include "timer.h"
 #include "debounce.h"
 
-#define LED PD6
 #define UP PD2
 #define DOWN PD3
 #define SEEK PD4
+#define LED PD6
 
-uint8_t PD2Pressed = 0;
-uint8_t PD3Pressed = 0;
-uint8_t PD4Pressed = 0;
-volatile uint8_t PD2Sample = 0;
-volatile uint8_t PD3Sample = 0;
-volatile uint8_t PD4Sample = 0;
+#define SEEK_IDX 0
+#define UP_IDX 1
+#define DOWN_IDX 2
 
 uint8_t changeColor = 1;
-
-volatile uint8_t oldD;
 
 int main(void)
 {
@@ -44,42 +39,33 @@ int main(void)
 
   while (1)
   {
-    PD2Pressed = Debounce(&buttons[bttn_idx], PD2Sample);
+    // If timer overflowed or first cycle (PCINT)
+    if (debounceTimer == 1)
+    {
+      Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
-    if (PD2Pressed && changeColor)
+      // If buttons released and debounce function is not counting
+      if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
+      {
+        debounceReady = 1;
+        changeColor = 1;
+      }
+    }
+
+    if ((buttons[SEEK_IDX].stableState == 1) && (changeColor))
     {
       gpio_toggle(&PORTD, LED);
       changeColor = 0;
     }
-    /* Button released */
-    else if (!PD2Pressed && !changeColor)
+    else if ((buttons[UP_IDX].stableState == 1) && (changeColor))
     {
-      //buttonReleased = 0; // Force "0" (after buttonReleased run this only once)
-      changeColor = 1;
+      gpio_toggle(&PORTD, LED);
+      changeColor = 0;
+    }
+    else if ((buttons[DOWN_IDX].stableState == 1) && (changeColor))
+    {
+      gpio_toggle(&PORTD, LED);
+      changeColor = 0;
     }
   }
-}
-
-/* Interrupt service routine PORTD */
-ISR(PCINT2_vect)
-{
-  uint8_t newD = PIND; // update current state of port D
-
-  TCNT0 = 0; // Reset timer0
-  tim0_ovf_4ms();
-  tim0_ovf_enable();
-  debounceTimer = 1;
-
-  // PD2 (PCINT18) pressed
-  if ((newD & (1 << PD2)) == 0 &&
-      (oldD & (1 << PD2)) != 0)
-  { // falling edge detection (pull-up)  1 \___ 0
-    PD2Sample = 1;
-  }
-  else // PDx release - if any button released reset everything - rising edge detection 0 ___/ 1
-  {
-    PD2Sample = 0;
-  }
-
-  oldD = newD;
 }
