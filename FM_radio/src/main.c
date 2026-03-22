@@ -23,12 +23,17 @@
 
 #define LED PD6
 
-/* For clarity (not meant to be changed)*/
+/* For clarity (not meant to be changed) */
 #define SEEK_IDX 0
 #define UP_IDX 1
 #define DOWN_IDX 2
 
+#define OVF_NUM 5 // Number of ovfs for 66 ms; determines speed of the auto frequency change
+
 uint8_t changeColor = 1;
+uint8_t longPress = 0;
+
+volatile uint8_t timer1Cycles =  0;
 
 int main(void)
 {
@@ -50,16 +55,36 @@ int main(void)
 
   while (1)
   {
-    // If timer overflowed or first cycle (PCINT)
+    /* If timer overflowed or first cycle (PCINT) */
     if (debounceTimer == 1)
     {
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
-      // If buttons released and debounce function is not counting
+      // If button is still pressed and debounce function finished -> long press
+      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))
+      {
+        TCNT1 = 0;
+        tim1_ovf_524ms();
+        tim1_ovf_enable();
+
+        longPress = 1;
+      }
+
+      // If button released and debounce function finished
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
         changeColor = 1;
+
+        // If used, leave from frequency change mode
+        if (longPress)      
+        {
+        tim2_stop();
+        tim2_ovf_disable();
+
+        longPress = 0;
+        timer1Cycles = 0;
+        }
       }
     }
 
@@ -79,4 +104,18 @@ int main(void)
       changeColor = 0;
     }
   }
+}
+
+/* Interrupt service routine TIMER1 overflow */
+ISR(TIMER1_OVF_vect)
+{
+  // Time of 1 Cycle: OVF_NUM (5) * 66ms = 330 ms
+  if (timer1Cycles >= OVF_NUM)
+  {
+    timer1Cycles = 0;      
+    changeColor = 1;
+  }
+
+  timer1Cycles++;
+  tim1_ovf_66ms();
 }

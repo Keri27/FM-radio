@@ -123,8 +123,8 @@ ISR(PCINT2_vect)
     oldD = newD;
 }
 
-/* Interrupt service routine TIMER0 overflow */
-ISR(TIMER0_OVF_vect)
+/* Interrupt service routine TIMER2 overflow */
+ISR(TIMER2_OVF_vect)
 {
     debounceTimer = 1;
 }
