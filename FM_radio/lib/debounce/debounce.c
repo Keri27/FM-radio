@@ -24,7 +24,7 @@ uint8_t Sample(uint8_t bttn_idx)
     // SEEK changed (PCINT) - rising or falling edge
     if (bttn_idx == 0)
     {
-        // falling edge detection (pull-up -> active low)  1 \___ 0
+        // level detection (pull-up -> active low)  1 \___ 0
         if ((newD & (1 << SEEK)) == 0)
         {
             edgeDetected = 1;
@@ -88,43 +88,4 @@ void Debounce(Button_t *btn, uint8_t currentSample)
     }
 
     btn->lastSample = currentSample;
-}
-
-/* Interrupt service routine PORTD */
-ISR(PCINT2_vect)
-{
-    if (debounceReady)
-    {
-        newD = PIND; // update current state of port D
-
-        // SEEK changed (PCINT) - rising or falling edge
-        if ((newD ^ oldD) & (1 << SEEK))
-        {
-            bttn_idx = 0;
-        }
-        // UP changed
-        else if ((newD ^ oldD) & (1 << UP))
-        {
-            bttn_idx = 1;
-        }
-        // DOWN changed
-        else if ((newD ^ oldD) & (1 << DOWN))
-        {
-            bttn_idx = 2;
-        }
-
-        debounceReady = 0;
-        debounceTimer = 1;
-        TCNT2 = 0;
-        tim2_ovf_4ms();
-        tim2_ovf_enable();
-    }
-
-    oldD = newD;
-}
-
-/* Interrupt service routine TIMER2 overflow */
-ISR(TIMER2_OVF_vect)
-{
-    debounceTimer = 1;
 }

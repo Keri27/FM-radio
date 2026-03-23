@@ -20,8 +20,10 @@
 #include "gpio.h"
 #include "timer.h"
 #include "debounce.h"
+#include "Si4703.h"
 
-#define LED PD6
+#define GPIO2 PD7 // PD7 (breadboard)
+#define LED PD6   // PD6
 
 /* For clarity (not meant to be changed) */
 #define SEEK_IDX 0
@@ -30,10 +32,12 @@
 
 #define OVF_NUM 5 // Number of ovfs for 66 ms; determines speed of the auto frequency change
 
-uint8_t changeColor = 1;
+uint8_t changeFreq = 1;
 uint8_t longPress = 0;
 
+volatile uint8_t actFreq;
 volatile uint8_t timer1Cycles =  0;
+volatile uint8_t gpio2 = 0; // STC and RDS interrupt flag
 
 int main(void)
 {
@@ -52,6 +56,10 @@ int main(void)
 
   /* Enable global interrupts */
   sei();
+
+  SI4703_Init();
+  SI4703_SeekUp();
+  actFreq = SI4703_GetFreq();
 
   while (1)
   {
@@ -74,7 +82,7 @@ int main(void)
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
-        changeColor = 1;
+        changeFreq = 1;
 
         // If used, leave from frequency change mode
         if (longPress)      
@@ -87,23 +95,70 @@ int main(void)
         }
       }
     }
+    /* Seek up relevant station (treshold: RSSI = , SNR = ) */
+    if ((buttons[SEEK_IDX].stableState == 1) && (changeFreq))
+    {
+      gpio_toggle(&PORTD, LED);
+      changeFreq = 0;
+    }
+    /* Step up frequency for 0.1 MHz */
+    else if ((buttons[UP_IDX].stableState == 1) && (changeFreq))
+    {
+      actFreq += 0.1;
+      SI4703_SetFreq(actFreq);
 
-    if ((buttons[SEEK_IDX].stableState == 1) && (changeColor))
-    {
       gpio_toggle(&PORTD, LED);
-      changeColor = 0;
+      changeFreq = 0;
     }
-    else if ((buttons[UP_IDX].stableState == 1) && (changeColor))
+    /* Step down frequency for 0.1 MHz */
+    else if ((buttons[DOWN_IDX].stableState == 1) && (changeFreq))
     {
+      actFreq -= 0.1;
+      SI4703_SetFreq(actFreq);
+
       gpio_toggle(&PORTD, LED);
-      changeColor = 0;
-    }
-    else if ((buttons[DOWN_IDX].stableState == 1) && (changeColor))
-    {
-      gpio_toggle(&PORTD, LED);
-      changeColor = 0;
+      changeFreq = 0;
     }
   }
+}
+
+/* Interrupt service routine PORTD */
+ISR(PCINT2_vect)
+{
+  if (debounceReady)
+  {
+    newD = PIND; // update current state of port D
+
+    // SEEK changed (PCINT) - rising or falling edge
+    if ((newD ^ oldD) & (1 << SEEK))
+    {
+      bttn_idx = 0;
+    }
+    // UP changed
+    else if ((newD ^ oldD) & (1 << UP))
+    {
+      bttn_idx = 1;
+    }
+    // DOWN changed
+    else if ((newD ^ oldD) & (1 << DOWN))
+    {
+      bttn_idx = 2;
+    }
+
+    debounceReady = 0;
+    debounceTimer = 1;
+    TCNT2 = 0;
+    tim2_ovf_4ms();
+    tim2_ovf_enable();
+  }
+
+  // GPIO falling edge (active low)  1 \___ 0
+  if ((newD & (1 << GPIO2)) == 0 && (oldD & (1 << GPIO2)) == 1)
+  {
+    gpio2 = 1;
+  }
+  
+  oldD = newD;
 }
 
 /* Interrupt service routine TIMER1 overflow */
@@ -113,9 +168,15 @@ ISR(TIMER1_OVF_vect)
   if (timer1Cycles >= OVF_NUM)
   {
     timer1Cycles = 0;      
-    changeColor = 1;
+    changeFreq = 1;
   }
 
   timer1Cycles++;
   tim1_ovf_66ms();
+}
+
+/* Interrupt service routine TIMER2 overflow */
+ISR(TIMER2_OVF_vect)
+{
+  debounceTimer = 1;
 }
