@@ -9531,7 +9531,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Polarized")
-		(at 74.93 161.29 0)
+		(at 74.93 161.29 180)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -9539,7 +9539,7 @@
 		(dnp no)
 		(uuid "011749ba-ce42-44af-8ae5-a2cfae742cac")
 		(property "Reference" "Cc1"
-			(at 83.058 160.02 0)
+			(at 66.802 162.56 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9548,7 +9548,7 @@
 			)
 		)
 		(property "Value" "47u"
-			(at 83.058 162.56 0)
+			(at 66.802 160.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -9557,7 +9557,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric_Pad1.33x1.80mm_HandSolder"
-			(at 75.8952 165.1 0)
+			(at 73.9648 157.48 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -14608,7 +14608,7 @@
 	)
 	(symbol
 		(lib_id "Device:C_Polarized")
-		(at 140.97 163.83 0)
+		(at 140.97 163.83 180)
 		(unit 1)
 		(exclude_from_sim no)
 		(in_bom yes)
@@ -14616,7 +14616,7 @@
 		(dnp no)
 		(uuid "9027030e-9a9b-473c-a30d-65562a89e860")
 		(property "Reference" "Cc2"
-			(at 145.034 162.052 0)
+			(at 136.906 165.608 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -14625,7 +14625,7 @@
 			)
 		)
 		(property "Value" "47u"
-			(at 145.288 164.338 0)
+			(at 136.652 163.322 0)
 			(effects
 				(font
 					(size 1.27 1.27)
@@ -14634,7 +14634,7 @@
 			)
 		)
 		(property "Footprint" "Capacitor_SMD:C_1206_3216Metric_Pad1.33x1.80mm_HandSolder"
-			(at 141.9352 167.64 0)
+			(at 140.0048 160.02 0)
 			(effects
 				(font
 					(size 1.27 1.27)
