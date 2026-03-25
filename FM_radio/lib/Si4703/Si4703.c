@@ -61,10 +61,10 @@ bool SI4703_Init()
 	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
 
 	/* Enable RDS Interrupt */
-	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
 
 	/* Enable Seek/Tune Complete Interrupt */
-	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
 
 	/* Enable RDS */
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDS);
@@ -73,8 +73,8 @@ bool SI4703_Init()
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
 
 	/* Set GPIO 2 STC/RDS interrupt */
-	SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
-	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
+	//SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
 
 	/* Set Band as 00 (Europe) */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~((1 << IDX_BAND0) | (1 << IDX_BAND1));

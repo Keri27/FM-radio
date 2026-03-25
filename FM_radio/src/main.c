@@ -16,6 +16,7 @@
 //#include <stdio.h>
 //#include <stdlib.h>
 #include <stdint.h>
+#include <util/delay.h> // SMAZAT!!
 
 #include "gpio.h"
 #include "timer.h"
@@ -35,7 +36,7 @@
 uint8_t changeFreq = 1;
 uint8_t longPress = 0;
 
-volatile uint8_t actFreq;
+volatile float actFreq;
 volatile uint8_t timer1Cycles =  0;
 volatile uint8_t gpio2 = 0; // STC and RDS interrupt flag
 
@@ -58,7 +59,7 @@ int main(void)
   sei();
 
   SI4703_Init();
-  SI4703_SeekUp();
+  SI4703_SeekUp();  
   actFreq = SI4703_GetFreq();
 
   while (1)
@@ -98,6 +99,17 @@ int main(void)
     /* Seek up relevant station (treshold: RSSI = , SNR = ) */
     if ((buttons[SEEK_IDX].stableState == 1) && (changeFreq))
     {
+      if (SI4703_SeekUp()) 
+      {
+        actFreq = SI4703_GetFreq();
+      }
+      else
+      {
+        gpio_toggle(&PORTD, LED);
+        _delay_ms(2000);
+        gpio_toggle(&PORTD, LED);
+      }
+
       gpio_toggle(&PORTD, LED);
       changeFreq = 0;
     }
