@@ -238,18 +238,30 @@ bool SI4703_CheckRDSReady()
 static bool SI4703_Wait(void)
 {
 	uint8_t timeout = 0;
-	
+	uint8_t seekFail = 0;
+	uint8_t retry = 0;
+
 	while(1)
 	{
-		if(!SI4703_RxRegs()) return false;		
+		while (!SI4703_RxRegs() && retry < 3)
+		{
+			retry++;
+			_delay_ms(5);
+		}
+		if (retry == 3) return false;
+
 		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) != 0) break;
+		if (SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) 
+		{
+			seekFail = 1;
+			break;
+		}
 		_delay_ms(60);	/* Seek or Tune Time Delay */
 		
 		timeout++;
 		if(timeout > 10) return false;
 	}
 	
-	if(SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) return false;
 	
 	timeout = 0;
 	
@@ -266,8 +278,8 @@ static bool SI4703_Wait(void)
 		timeout++;
 		if(timeout > 10) return false;
 	}
-	
-	return true;
+
+	return !seekFail; // if seekFail return false
 }
 
 static bool SI4703_RxRegs()

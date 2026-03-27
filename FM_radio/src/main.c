@@ -16,7 +16,7 @@
 //#include <stdio.h>
 //#include <stdlib.h>
 #include <stdint.h>
-#include <util/delay.h> // SMAZAT!!
+//#include <util/delay.h> // SMAZAT!!
 
 #include "gpio.h"
 #include "timer.h"
@@ -106,11 +106,9 @@ int main(void)
       else
       {
         gpio_toggle(&PORTD, LED);
-        _delay_ms(2000);
-        gpio_toggle(&PORTD, LED);
       }
 
-      gpio_toggle(&PORTD, LED);
+      //gpio_toggle(&PORTD, LED);
       changeFreq = 0;
     }
     /* Step up frequency for 0.1 MHz */
@@ -119,7 +117,7 @@ int main(void)
       actFreq += 0.1;
       SI4703_SetFreq(actFreq);
 
-      gpio_toggle(&PORTD, LED);
+      //gpio_toggle(&PORTD, LED);
       changeFreq = 0;
     }
     /* Step down frequency for 0.1 MHz */
@@ -128,7 +126,7 @@ int main(void)
       actFreq -= 0.1;
       SI4703_SetFreq(actFreq);
 
-      gpio_toggle(&PORTD, LED);
+      //gpio_toggle(&PORTD, LED);
       changeFreq = 0;
     }
   }
