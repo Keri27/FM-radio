@@ -107,6 +107,7 @@ int main(void)
       }
       else
       {
+        SI4703_SeekClear();
         gpio_toggle(&PORTD, LED);
       }
 
@@ -162,15 +163,18 @@ ISR(PCINT2_vect)
     TCNT2 = 0;
     tim2_ovf_4ms();
     tim2_ovf_enable();
-  }
 
+    oldD = newD;
+  }
+  /*
   // GPIO falling edge (active low)  1 \___ 0
   if ((newD & (1 << GPIO2)) == 0 && (oldD & (1 << GPIO2)) == 1)
   {
     gpio2 = 1;
   }
   
-  oldD = newD;
+  
+  */
 }
 
 /* Interrupt service routine TIMER1 overflow */

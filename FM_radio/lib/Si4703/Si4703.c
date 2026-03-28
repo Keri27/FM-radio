@@ -228,6 +228,29 @@ bool SI4703_SeekDown()
 	return true;
 }
 
+bool SI4703_SeekClear()
+{
+	uint8_t timeout = 0;
+
+	if (!SI4703_RxRegs()) return false;
+
+	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
+	if (!SI4703_TxRegs()) return false;
+
+	while (1)
+	{
+		if (!SI4703_RxRegs()) return false;
+
+		if ((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) == 0) break;
+		_delay_ms(60); /* Seek or Tune Time Delay */
+
+		timeout++;
+		if (timeout > 5) return false;
+	}
+
+	return true;
+}
+
 bool SI4703_CheckRDSReady()
 {
 	if(!SI4703_RxRegs()) return false;
@@ -239,17 +262,11 @@ static bool SI4703_Wait(void)
 {
 	uint8_t timeout = 0;
 	uint8_t seekFail = 0;
-	uint8_t retry = 0;
 
+	/* Wait for STC bit to be set*/
 	while(1)
 	{
-		/* Wait STC */
-		while (!SI4703_RxRegs() && retry < 3)
-		{
-			retry++;
-			_delay_ms(5);
-		}
-		if (retry == 3) return false;
+		if (!SI4703_RxRegs()) return false;
 
 		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) != 0) break;
 		if (SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) 
@@ -264,13 +281,15 @@ static bool SI4703_Wait(void)
 	}
 	
 	timeout = 0;
-	
+	_delay_ms(20);
+
+	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
+	SI4703_Regs[REG_CHANNEL] &= ~(1 << IDX_TUNE);
+	if (!SI4703_TxRegs()) return false;
+
+	/* Wait for STC bit to be reset*/
 	while(1)
 	{
-		SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
-		SI4703_Regs[REG_CHANNEL] &= ~(1 << IDX_TUNE);		
-		if(!SI4703_TxRegs()) return false;
-		
 		if(!SI4703_RxRegs()) return false;
 		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) == 0) break;
 		_delay_ms(60);	/* Seek or Tune Time Delay */

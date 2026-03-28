@@ -195,6 +195,8 @@ float SI4703_GetFreq();
 bool SI4703_SetFreq(float freq);
 bool SI4703_SeekUp(void);
 bool SI4703_SeekDown(void);
+bool SI4703_SeekClear(void);
+//bool SI4703_SeekFail(void);
 bool SI4703_UpdateRadioInfo(void);
 bool SI4703_CheckRDSReady(void);
 
