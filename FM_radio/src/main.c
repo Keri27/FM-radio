@@ -70,7 +70,9 @@ int main(void)
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
       // If button is still pressed and debounce function finished -> long press
-      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))
+      if (((buttons[UP_IDX].stableState == 1) && (buttons[UP_IDX].debounceCount == 0)) ||
+          ((buttons[DOWN_IDX].stableState == 1) && (buttons[DOWN_IDX].debounceCount == 0)))
+
       {
         TCNT1 = 0;
         tim1_ovf_524ms();
@@ -88,8 +90,8 @@ int main(void)
         // If used, leave from frequency change mode
         if (longPress)      
         {
-        tim2_stop();
-        tim2_ovf_disable();
+        tim1_stop();
+        tim1_ovf_disable();
 
         longPress = 0;
         timer1Cycles = 0;

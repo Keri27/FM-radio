@@ -243,6 +243,7 @@ static bool SI4703_Wait(void)
 
 	while(1)
 	{
+		/* Wait STC */
 		while (!SI4703_RxRegs() && retry < 3)
 		{
 			retry++;
@@ -261,7 +262,6 @@ static bool SI4703_Wait(void)
 		timeout++;
 		if(timeout > 10) return false;
 	}
-	
 	
 	timeout = 0;
 	
