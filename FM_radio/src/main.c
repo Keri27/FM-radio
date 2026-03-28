@@ -172,8 +172,6 @@ ISR(PCINT2_vect)
   {
     gpio2 = 1;
   }
-  
-  
   */
 }
 
