@@ -274,10 +274,10 @@ static bool SI4703_Wait(void)
 			seekFail = 1;
 			break;
 		}
-		_delay_ms(60);	/* Seek or Tune Time Delay */
+		_delay_ms(80);	/* Seek or Tune Time Delay */
 		
 		timeout++;
-		if(timeout > 10) return false;
+		if(timeout > 15) return false;
 	}
 	
 	timeout = 0;

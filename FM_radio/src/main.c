@@ -13,17 +13,15 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-//#include <stdio.h>
-//#include <stdlib.h>
 #include <stdint.h>
-//#include <util/delay.h> // SMAZAT!!
 
 #include "gpio.h"
 #include "timer.h"
 #include "debounce.h"
 #include "Si4703.h"
+#include "DEP128064C1.h"
 
-#define GPIO2 PD7 // PD7 (breadboard)
+//#define GPIO2 PD7 // PD7 (breadboard)
 #define LED PD6   // PD6
 
 /* For clarity (not meant to be changed) */
@@ -36,7 +34,7 @@
 uint8_t changeFreq = 1;
 uint8_t longPress = 0;
 
-volatile float actFreq;
+float actFreq;
 volatile uint8_t timer1Cycles =  0;
 volatile uint8_t gpio2 = 0; // STC and RDS interrupt flag
 
@@ -58,9 +56,26 @@ int main(void)
   /* Enable global interrupts */
   sei();
 
+  /* 3-wire SPI constructor */
+  u8g2_Setup_ssd1306_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_3wire_sw_spi, gpio_cb);
+
+  u8g2_InitDisplay(&u8g2);
+  u8g2_SetPowerSave(&u8g2, 0);  // switch off power save mode
+  u8g2_SetContrast(&u8g2, 150); // <0; 255>
+
   SI4703_Init();
-  SI4703_SeekUp();  
-  actFreq = SI4703_GetFreq();
+
+  if (SI4703_SeekUp())
+  {
+    actFreq = SI4703_GetFreq();
+    display_updateFreq(actFreq);
+  }
+  else
+  {
+    SI4703_SeekClear();
+    actFreq = SI4703_GetFreq();
+    display_seekFail(actFreq);
+  }
 
   while (1)
   {
@@ -101,17 +116,18 @@ int main(void)
     /* Seek up relevant station (treshold: RSSI = , SNR = ) */
     if ((buttons[SEEK_IDX].stableState == 1) && (changeFreq))
     {
-      if (SI4703_SeekUp()) 
+      if (SI4703_SeekUp())
       {
         actFreq = SI4703_GetFreq();
+        display_updateFreq(actFreq);
       }
       else
       {
         SI4703_SeekClear();
-        gpio_toggle(&PORTD, LED);
+        actFreq = SI4703_GetFreq();
+        display_seekFail(actFreq);
       }
 
-      //gpio_toggle(&PORTD, LED);
       changeFreq = 0;
     }
     /* Step up frequency for 0.1 MHz */
@@ -119,8 +135,7 @@ int main(void)
     {
       actFreq += 0.1;
       SI4703_SetFreq(actFreq);
-
-      //gpio_toggle(&PORTD, LED);
+      //display_updateFreq(actFreq);
       changeFreq = 0;
     }
     /* Step down frequency for 0.1 MHz */
@@ -128,8 +143,7 @@ int main(void)
     {
       actFreq -= 0.1;
       SI4703_SetFreq(actFreq);
-
-      //gpio_toggle(&PORTD, LED);
+      //display_updateFreq(actFreq);
       changeFreq = 0;
     }
   }

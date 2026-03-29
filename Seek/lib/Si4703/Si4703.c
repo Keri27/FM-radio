@@ -227,7 +227,7 @@ bool SI4703_SeekDown()
 	if(!SI4703_TxRegs()) return false;
 	
 	/* Wait STC bit set & clear */
-	if(!SI4703_Wait()) return false;
+	//if(!SI4703_Wait()) return false;
 	
 	return true;
 }
@@ -276,21 +276,17 @@ static bool SI4703_Wait(void)
 		if (!SI4703_RxRegs()) return false;
 
 		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) != 0) break;
-		if (SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) 
-		{
-			seekFail = 1;
-			break;
-		}
-		_delay_ms(80);	/* Seek or Tune Time Delay */
+
+		_delay_ms(60);	/* Seek or Tune Time Delay */
 		
 		timeout++;
-		if(timeout > 15) return false;
+		if(timeout > 10) return false;
 	}
 	
 	timeout = 0;
 	_delay_ms(20);
 
-	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
+	//SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
 	SI4703_Regs[REG_CHANNEL] &= ~(1 << IDX_TUNE);
 	if (!SI4703_TxRegs()) return false;
 
