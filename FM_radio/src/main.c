@@ -8,7 +8,8 @@
  * REFERENCE
  * GPIO and Timer library: https://github.com/tomas-fryza/avr-examples
  * Si4703 library: https://github.com/eziya/AVR_SI4703/tree/master
- *
+ * OLED library:
+ * 
  */
 
 #include <avr/io.h>
@@ -146,6 +147,7 @@ int main(void)
       //display_updateFreq(actFreq);
       changeFreq = 0;
     }
+  
   }
 }
 
@@ -192,7 +194,7 @@ ISR(PCINT2_vect)
 /* Interrupt service routine TIMER1 overflow */
 ISR(TIMER1_OVF_vect)
 {
-  // Time of 1 Cycle: OVF_NUM (5) * 66ms = 330 ms
+  // Time of 1 Cycle: OVF_NUM (5) * 66ms = 330 ms; Time of the first: 524m + (OVF_NUM -1) * 66m
   if (timer1Cycles >= OVF_NUM)
   {
     timer1Cycles = 0;      
