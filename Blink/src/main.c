@@ -8,12 +8,12 @@
 
 // -- Defines ----------------------------------------------
 #define LED PD7 // On-board LED
-#define BTN PD5
+#define BTN PD6
 
 // -- Includes ---------------------------------------------
 #include <avr/io.h> // AVR device-specific IO definitions
 #include <gpio.h>   // GPIO library for AVR-GCC
-#include <util/delay.h>
+#include "Si4703.h"
 
 int main(void)
 {
@@ -22,7 +22,10 @@ int main(void)
 
     gpio_write_low(&PORTD, LED);
 
-    // Infinite loop
+    SI4703_Init();
+    SI4703_SeekUp();
+
+        // Infinite loop
     while (1)
     {
         
@@ -34,12 +37,6 @@ int main(void)
         {
             gpio_write_low(&PORTD, LED); // Turn LED off
         }
-        /*
-        gpio_write_high(&PORTD, LED); // Turn LED on
-        _delay_ms(2000);
-        gpio_write_low(&PORTD, LED); // Turn LED off
-        _delay_ms(2000);
-        */
     }
 
     // Will never reach this

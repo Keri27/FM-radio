@@ -13,7 +13,7 @@ volatile uint8_t newD;
 volatile uint8_t oldD;
 volatile uint8_t bttn_idx = 0; // init value doesnt matter
 
-Button_t buttons[3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}; // Array of 3 structures
+Button_t buttons[3] = {{0, 0, 0}, {0, 0, 0}, {0, 0, 0}}; // Array of 4 structures
 
 /* Sample function detects egde that caused the PCINT interrupt */
 uint8_t Sample(uint8_t bttn_idx)
