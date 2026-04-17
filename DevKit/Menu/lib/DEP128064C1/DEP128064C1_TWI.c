@@ -117,8 +117,10 @@ void display_updateFreq(float actFreq)
     dtostrf(actFreq, 4, 1, str);
 
     u8g2_ClearBuffer(&u8g2);
+
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
     u8g2_DrawStr(&u8g2, 40, 28, str);
+
     u8g2_SendBuffer(&u8g2);
 }
 
@@ -128,39 +130,48 @@ void display_seekFail(float actFreq)
     dtostrf(actFreq, 4, 1, str);
 
     u8g2_ClearBuffer(&u8g2);
+
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
     u8g2_DrawStr(&u8g2, 40, 28, str);
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
-    u8g2_DrawStr(&u8g2, 25, 45, "Stanice nenalezena!");
+    u8g2_DrawStr(&u8g2, 30, 45, "Stanice");
+    u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+
     u8g2_SendBuffer(&u8g2);
 }
 
 void display_changeVolume(uint8_t volume)
 {
-    char str[10];
-    //volume = (volume/1.5)*10;
-    itoa(volume, str, 10);
+    char str[3]; // 1 ascii char = 1B + end sign + reserve
+
+    if (volume) volume = (volume + 1) / 2;
+    else volume = 0;
+    itoa(volume, str, /* dec */ 10); // integer to ascii;
 
     u8g2_ClearBuffer(&u8g2);
+
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 10, 15, "Hlasitost:");
-    //u8g2_DrawHLine(&u8g2, 10, 14, 144);
-    u8g2_DrawStr(&u8g2, 20, 40, str);
-    //u8g2_DrawStr(&u8g2, 40, 40, "%");
+    u8g2_DrawStr(&u8g2, 10, 15, "Hlasitost");
+    u8g2_DrawStr(&u8g2, 20, 50, str);
+
+    u8g2_DrawFrame(&u8g2, 13, 25, 84, 6);
+    if (volume) u8g2_DrawBox(&u8g2, 15, 27, (volume) * 10, 2);
+
     u8g2_SendBuffer(&u8g2);
 }
 
 void display_changeAudioOutput(uint8_t output)
 {
     u8g2_ClearBuffer(&u8g2);
-    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 10, 15, "Audio vystup:");
 
-    u8g2_DrawCircle(&u8g2, 20, 30, 5, U8G2_DRAW_ALL);
-    u8g2_DrawCircle(&u8g2, 20, 50, 5, U8G2_DRAW_ALL);
+    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
+    u8g2_DrawStr(&u8g2, 10, 15, "Audio vystup");
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     u8g2_DrawStr(&u8g2, 40, 35, "Reproduktor");
     u8g2_DrawStr(&u8g2, 40, 55, "Sluchatka");
+
+    u8g2_DrawCircle(&u8g2, 20, 30, 5, U8G2_DRAW_ALL);
+    u8g2_DrawCircle(&u8g2, 20, 50, 5, U8G2_DRAW_ALL);
     
     /* Audio output: Speaker */
     if (!output)
@@ -178,16 +189,20 @@ void display_changeAudioOutput(uint8_t output)
 
 void display_changeBrightness(uint8_t brightness)
 {
-    char str[10];
-    brightness = brightness/2.5;
+    char str[5];
+    brightness = brightness / 2.5;
     itoa(brightness, str, 10);
 
     u8g2_ClearBuffer(&u8g2);
+
+    u8g2_DrawCircle(&u8g2, 45, 32, 30, U8G2_DRAW_ALL);
+    uint8_t rad = (brightness / 10) * 3;
+    u8g2_DrawFilledEllipse(&u8g2, 45, 32, rad, rad, U8G2_DRAW_ALL);
+
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 10, 15, "Jas:");
-    // u8g2_DrawHLine(&u8g2, 10, 14, 144);
-    u8g2_DrawStr(&u8g2, 20, 40, str);
-    u8g2_DrawStr(&u8g2, 40, 40, "%");
+    u8g2_DrawStr(&u8g2, 85, 31, "Jas");
+    u8g2_DrawStr(&u8g2, 85, 45, str);
+    u8g2_DrawStr(&u8g2, 115, 45, "%");
+
     u8g2_SendBuffer(&u8g2);
 }
-

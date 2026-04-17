@@ -10,8 +10,10 @@
 #include "DEP128064C1_TWI.h"
 
 #define LED PD6
+#define SD1 PB2 // Speaker shutdown (TPA741)
+#define SD2 PC1 // Headphones shutdown (TPA6111)
 
-/* For clarity (not meant to be changed)*/
+/* For clarity (do not change)*/
 #define SEEK_IDX 0
 #define UP_IDX 1
 #define DOWN_IDX 2
@@ -20,7 +22,7 @@
 uint8_t change = 0;
 uint8_t bttn_released = 1;
 uint8_t screen = 0; // carries index of the current screen - "0" belongs to the FM radio
-uint8_t volume = 8; // volume 0-15 step 2?
+uint8_t volume = 7; // volume 0-15 step 2?
 uint8_t output = 0; // audio output: speaker (default) or headphones
 uint8_t brightness = 150; // brightness of the OLED <0, 100> %; step: 10 %
 
@@ -33,6 +35,11 @@ int main(void)
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, MENU);
   gpio_mode_output(&DDRD, LED);
+  gpio_mode_output(&DDRB, SD1);
+  gpio_mode_output(&DDRC, SD2);
+
+  gpio_write_high(&PORTC, SD2);
+  gpio_write_low(&PORTB, SD1); // enable speaker (default)
 
   oldD = PIND; // update current state of port D
 
@@ -75,11 +82,12 @@ int main(void)
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
       // If any button pressed, debounce function finished and bttns have been released (last condition breaks the loop)
-      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0) && bttn_released)
+      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))  // && bttn_released
       {
-        bttn_released = 0;
+        //bttn_released = 0;
         change = 1; // enable change (freq, RDS, menu ...)
 
+        /* Change screen */
         if ((buttons[MENU_IDX].stableState == 1))
         {
           if (screen == 3)
@@ -97,7 +105,7 @@ int main(void)
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
-        bttn_released = 1;
+        //bttn_released = 1;
       }
     }
 
@@ -136,30 +144,94 @@ int main(void)
         }
         else
         {
-          // get freq<
+          // get freq?
           display_updateFreq(actFreq);
         }
       }
       /* Screen 1: Volume settings */
       else if (screen == 1)
       {
-
-
-        display_changeVolume(volume);
+        /* Increase volume */
+        if (buttons[UP_IDX].stableState == 1)
+        {
+          if (volume <= 13) 
+          {
+            if (volume) volume += 2; // if mute
+            else volume = 1;
+            SI4703_SetVolume(volume);
+          }
+          display_changeVolume(volume);
+        }
+        /* Decrease volume */
+        else if (buttons[DOWN_IDX].stableState == 1)
+        {
+          if (volume > 1)
+          {
+            volume -= 2;
+            SI4703_SetVolume(volume);
+          }
+          else if (volume == 1) 
+          {
+            volume = 0; // mute
+            SI4703_SetVolume(volume);
+          }
+          display_changeVolume(volume);
+        }
+        else
+        {
+          display_changeVolume(volume);
+        }
       }
       /* Screen 2: Audio output */
       else if (screen == 2)
       {
-
-
-        display_changeAudioOutput(output);
+        /* Switch to headphones */
+        if (buttons[DOWN_IDX].stableState == 1)
+        {
+          //stereo mode??
+          gpio_write_high(&PORTB, SD1);
+          gpio_write_low(&PORTC, SD2);
+          display_changeAudioOutput(output = 1);
+        }
+        /* Switch to speaker */
+        else if (buttons[UP_IDX].stableState == 1)
+        {
+          gpio_write_high(&PORTC, SD2);
+          gpio_write_low(&PORTB, SD1);
+          display_changeAudioOutput(output = 0);
+        }
+        else
+        {
+          display_changeAudioOutput(output);
+        }       
       }
       /* Screen 3: OLED brightness */
       else if (screen == 3)
       {
-
-
-        display_changeBrightness(brightness);
+        /* Decrease brightness */
+        if (buttons[DOWN_IDX].stableState == 1)
+        {
+          if (brightness >= 50)
+          {
+            brightness -= 25;
+            u8g2_SetContrast(&u8g2, brightness);
+            display_changeBrightness(brightness);
+          }
+        }
+        /* Increase brightness */
+        else if (buttons[UP_IDX].stableState == 1)
+        {
+          if (brightness <= 225)
+          {
+            brightness += 25;
+            u8g2_SetContrast(&u8g2, brightness);
+            display_changeBrightness(brightness);
+          }
+        }
+        else
+        {
+          display_changeBrightness(brightness);
+        }
       }
     }
   }

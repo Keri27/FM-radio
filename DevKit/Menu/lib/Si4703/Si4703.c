@@ -84,7 +84,7 @@ bool SI4703_Init()
 			
 	/* Set Volume as 0x0F */
 	SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0; // Clear volume bits (0000)
-	SI4703_Regs[REG_SYSCONFIG2] |= 0x0F; // Set volume to max (1111)
+	SI4703_Regs[REG_SYSCONFIG2] |= 0x7; // Set volume to max (0111)
 	
 	/* Set Seek Threshold, Recommended 0x19 */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~(MASK_SEEKTH);
