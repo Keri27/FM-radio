@@ -57,9 +57,7 @@ bool SI4703_Init()
 		
 	/* Set Force Mode for single speaker */
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO);
-
-	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
-
+	
 	/* Set Seek Mode as Stop at band limit */
 	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
 
@@ -203,11 +201,14 @@ bool SI4703_SeekUp()
 {
 	if(!SI4703_RxRegs()) return false;
 	
-	/* Set SEEK bit */
+	/* Set SEEKUP + SEEK bit */
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEK);
 	
 	if(!SI4703_TxRegs()) return false;
 	
+	/* Wait STC bit set & clear */
+	//if(!SI4703_Wait()) return false;
 	TCNT1 = 0;
 	tim1_ovf_2097ms();
 	tim1_ovf_enable();

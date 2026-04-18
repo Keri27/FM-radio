@@ -12,6 +12,7 @@
 #define LED PD6
 #define SD1 PB2 // Speaker shutdown (TPA741)
 #define SD2 PC1 // Headphones shutdown (TPA6111)
+#define GPIO2 PD2 // RDS/STC interrupt
 
 /* For clarity (do not change)*/
 #define SEEK_IDX 0
@@ -34,6 +35,7 @@ int main(void)
   gpio_mode_input_pullup(&DDRD, DOWN);
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, MENU);
+  gpio_mode_input_pullup(&DDRD, GPIO2);
   gpio_mode_output(&DDRD, LED);
   gpio_mode_output(&DDRB, SD1);
   gpio_mode_output(&DDRC, SD2);
@@ -47,7 +49,7 @@ int main(void)
   PCICR |= (1 << PCIE2);
 
   /* Enable interrupts on PD2 */
-  PCMSK2 |= (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22);
+  PCMSK2 |= (1 << PCINT18 /* GPIO2 */) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22);
 
   /* Enable global interrupts */
   sei();
@@ -191,6 +193,7 @@ int main(void)
           //stereo mode??
           gpio_write_high(&PORTB, SD1);
           gpio_write_low(&PORTC, SD2);
+          SI4703_SetMono(0);
           display_changeAudioOutput(output = 1);
         }
         /* Switch to speaker */
@@ -198,6 +201,7 @@ int main(void)
         {
           gpio_write_high(&PORTC, SD2);
           gpio_write_low(&PORTB, SD1);
+          SI4703_SetMono(1);
           display_changeAudioOutput(output = 0);
         }
         else
@@ -235,4 +239,48 @@ int main(void)
       }
     }
   }
+}
+
+/* Interrupt service routine TIMER0 overflow */
+ISR(TIMER0_OVF_vect)
+{
+  debounceTimer = 1;
+}
+
+/* Interrupt service routine PORTD */
+ISR(PCINT2_vect)
+{
+  if (debounceReady)
+  {
+    newD = PIND; // update current state of port D
+
+    // SEEK changed (PCINT) - rising or falling edge
+    if ((newD ^ oldD) & (1 << SEEK))
+    {
+      bttn_idx = 0;
+    }
+    // UP changed
+    else if ((newD ^ oldD) & (1 << UP))
+    {
+      bttn_idx = 1;
+    }
+    // DOWN changed
+    else if ((newD ^ oldD) & (1 << DOWN))
+    {
+      bttn_idx = 2;
+    }
+    // MENU changed
+    else if ((newD ^ oldD) & (1 << MENU))
+    {
+      bttn_idx = 3;
+    }
+
+    debounceReady = 0;
+    debounceTimer = 1;
+    TCNT0 = 0;
+    tim0_ovf_4ms();
+    tim0_ovf_enable();
+  }
+
+  oldD = newD;
 }

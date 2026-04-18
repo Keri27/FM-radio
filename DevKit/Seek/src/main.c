@@ -9,16 +9,16 @@
 #include "debounce.h"
 #include "Si4703.h"
 
-#define LED PD7
-#define GPIO2 PD2
+#define LED PD6
+#define GPIO2 PD7
 
 /* For clarity (not meant to be changed)*/
 #define SEEK_IDX 0
 #define UP_IDX 1
 #define DOWN_IDX 2
 
-uint8_t change = 1;
-volatile uint8_t seek = 0;
+uint8_t changeColor = 1;
+volatile uint8_t seek = 1;
 volatile uint8_t gpio2 = 0;
 volatile uint8_t seekFail = 0;
 volatile float actFreq;
@@ -32,20 +32,19 @@ int main(void)
   gpio_mode_input_pullup(&DDRD, GPIO2);
   gpio_mode_output(&DDRD, LED);
 
-  gpio_write_low(&PORTD, LED);
-
   oldD = PIND; // update current state of port D
 
   /* Enable PCINT2 */
   PCICR |= (1 << PCIE2);
 
   /* Enable interrupts on PD2 */
-  PCMSK2 |= (1 << PCINT18 /* GPIO2 */) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22);
+  PCMSK2 |= (1 << PCINT18) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT23);
 
   /* Enable global interrupts */
   sei();
 
   SI4703_Init();
+  if (SI4703_SeekUp()) seek = 1;
 
   while (1)
   {
@@ -58,29 +57,34 @@ int main(void)
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
-        change = 1;
+        changeColor = 1;
       }
     }
     /* Seek */
-    if ((buttons[SEEK_IDX].stableState == 1) && (change))
+    if ((buttons[SEEK_IDX].stableState == 1) && (changeColor))
     {
       if (SI4703_SeekUp()) seek = 1;
-      change = 0;
+
+      //gpio_toggle(&PORTD, LED);
+      changeColor = 0;
     }
     /* UP */
-    else if ((buttons[UP_IDX].stableState == 1) && (change))
+    else if ((buttons[UP_IDX].stableState == 1) && (changeColor))
     {
-      change = 0;
+      gpio_toggle(&PORTD, LED);
+      changeColor = 0;
     }
     /* UP */
-    else if ((buttons[DOWN_IDX].stableState == 1) && (change))
+    else if ((buttons[DOWN_IDX].stableState == 1) && (changeColor))
     {
-      change = 0;
+      gpio_toggle(&PORTD, LED);
+      changeColor = 0;
     }
     /* Seek done */
     else if (gpio2)
     {
       gpio2 = 0;
+      seek = 0;
     
       SI4703_SeekClear();
       // actFreq = SI4703_getFreq();
@@ -89,6 +93,7 @@ int main(void)
     else if (seekFail)
     {
       seekFail = 0;
+      seek = 0;
       gpio_toggle(&PORTD, LED);
       SI4703_SeekClear();
       // Error: Seek failed
@@ -104,12 +109,10 @@ ISR(PCINT2_vect)
   if (seek)
   {
     // GPIO falling edge (active low)  1 \___ 0
-    if (((newD & (1 << GPIO2)) == 0) && ((oldD & (1 << GPIO2)) != 0))
-      {
-        seek = 0;
-        gpio2 = 1;
-        gpio_toggle(&PORTD, LED);
-      }
+    if ((newD & (1 << GPIO2)) == 0 && (oldD & (1 << GPIO2)) == 1)
+    {
+      gpio2 = 1;
+    }
   }
 
   if (debounceReady)
@@ -145,7 +148,7 @@ ISR(PCINT2_vect)
 /* Interrupt service routine TIMER1 overflow */
 ISR(TIMER1_OVF_vect)
 {
-  //seekFail = 1;
+  seekFail = 1;
 }
 
 /* Interrupt service routine TIMER2 overflow */

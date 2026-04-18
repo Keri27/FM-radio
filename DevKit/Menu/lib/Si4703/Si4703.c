@@ -54,17 +54,22 @@ bool SI4703_Init()
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_DMUTE);
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_ENABLE);
 		
+	/* Set soft mute (enabled as default) */
+	//SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_DSMUTE);
+
 	/* Set Force Mode for single speaker */
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO);
-	
-	/* Set Seek Mode as Stop at band limit */
+
+	/* Set Seek Mode as Stop at band limit (disabled as default) */
 	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
+
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
 
 	/* Enable RDS Interrupt */
 	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
 
 	/* Enable Seek/Tune Complete Interrupt */
-	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
 
 	/* Enable RDS */
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDS);
@@ -73,8 +78,8 @@ bool SI4703_Init()
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
 
 	/* Set GPIO 2 STC/RDS interrupt */
-	//SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
-	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
+	SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
 
 	/* Set Band as 00 (Europe) */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~((1 << IDX_BAND0) | (1 << IDX_BAND1));
@@ -86,20 +91,22 @@ bool SI4703_Init()
 	SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0; // Clear volume bits (0000)
 	SI4703_Regs[REG_SYSCONFIG2] |= 0x7; // Set volume to max (0111)
 	
-	/* Set Seek Threshold, Recommended 0x19 */
+	/* Set Seek Threshold (RSSI), Recommended 0x19 */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~(MASK_SEEKTH);
 	SI4703_Regs[REG_SYSCONFIG2] |= (0x19 << 8); // max: 125
 	
-	/* Set SKSNR, Recommended 0x04 */
+	/* Set SKSNR (SNR treshold), Recommended 0x04 */
 	SI4703_Regs[REG_SYSCONFIG3] &= ~(MASK_SKSNR);	
 	SI4703_Regs[REG_SYSCONFIG3] |= (0x04 << 4);	// max: 7
 	
-	/* Set SKCNT, Recommended 0x08 */
+	/* Set SKCNT (impulse noice treshold), Recommended 0x08 */
 	SI4703_Regs[REG_SYSCONFIG3] &= ~(MASK_SKCNT);	
 	SI4703_Regs[REG_SYSCONFIG3] |= 0x08; // max: 15
-	
-	if(!SI4703_TxRegs()) return false;
-	
+
+
+
+	if (!SI4703_TxRegs()) return false;
+
 	/* Wait Powerup Time(110ms), Datasheet page 13 */
 	_delay_ms(110);
 	
@@ -201,7 +208,7 @@ bool SI4703_SeekUp()
 	if(!SI4703_RxRegs()) return false;
 	
 	/* Set SEEKUP + SEEK bit */
-	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
+	//SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP); // if not using SeekDown, its sufficient to set it only once (Init function) 
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEK);
 	
 	if(!SI4703_TxRegs()) return false;
