@@ -24,6 +24,9 @@
 uint8_t change = 0;
 uint8_t bttn_released = 1;
 uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
+uint8_t rssi = 0;
+uint8_t stereo = 0;
+uint8_t seekFail = 0;
 
 uint8_t volume; // volume: 0, 1, 3, 5, ..., 15
 uint8_t output; // audio output: speaker (default) or headphones
@@ -41,7 +44,7 @@ int main(void)
   gpio_mode_input_pullup(&DDRD, DOWN);
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, MENU);
-  gpio_mode_input_pullup(&DDRD, GPIO2);
+  //gpio_mode_input_pullup(&DDRD, GPIO2);
   gpio_mode_output(&DDRD, LED);
   gpio_mode_output(&DDRB, SD1);
   gpio_mode_output(&DDRC, SD2);
@@ -56,7 +59,7 @@ int main(void)
   PCICR |= (1 << PCIE2);
 
   /* Enable interrupts on PD2 */
-  PCMSK2 |= (1 << PCINT18 /* GPIO2 */) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22);
+  PCMSK2 |= (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22); // (1 << PCINT18 /* GPIO2 */) |
 
   /* Enable global interrupts */
   sei();
@@ -91,17 +94,15 @@ int main(void)
   if (volume > 15) volume = 7;
   SI4703_SetVolume(volume);
 
-  if (SI4703_SeekUp())
-  {
-    actFreq = SI4703_GetFreq();
-    display_updateFreq(actFreq);
-  }
-  else
-  {
-    SI4703_SeekClear();
-    actFreq = SI4703_GetFreq();
-    display_seekFail(actFreq);
-  }
+  /* Seek sequence */
+  if (SI4703_SeekUp()) seekFail = 0;
+  else seekFail = 1;
+
+  actFreq = SI4703_GetFreq();
+  rssi = SI4703_GetRSSI();
+  stereo = SI4703_GetStereo();
+
+  display_updateChannel(actFreq, rssi, stereo, seekFail);
 
   while (1)
   {
@@ -145,36 +146,41 @@ int main(void)
       /* Screen 0: FM radio (default) */
       if (screen == 0) 
       {
-        if (buttons[SEEK_IDX].stableState == 1)
-        {
-          if (SI4703_SeekUp())
-          {
-            actFreq = SI4703_GetFreq();
-            display_updateFreq(actFreq);
-          }
-          else
-          { // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
-            SI4703_SeekClear();
-            actFreq = SI4703_GetFreq();
-            display_seekFail(actFreq);
-          }
+        if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
+        { 
+          if (SI4703_SeekUp()) seekFail = 0;
+          else seekFail = 1;
+
+          SI4703_SeekClear();
+
+          actFreq = SI4703_GetFreq();
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+
+          display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
         else if (buttons[UP_IDX].stableState == 1) 
         {
           actFreq += 0.1;
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+
           SI4703_SetFreq(actFreq);
-          display_updateFreq(actFreq);
+          display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
         else if (buttons[DOWN_IDX].stableState == 1) 
         {
-          actFreq -= 0.1;
+          actFreq += 0.1;
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+
           SI4703_SetFreq(actFreq);
-          display_updateFreq(actFreq);
+          display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
         else
         {
           // get freq?
-          display_updateFreq(actFreq);
+          display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
       }
       /* Screen 1: Volume settings */
@@ -281,10 +287,10 @@ ISR(TIMER2_OVF_vect)
 /* Interrupt service routine PORTD */
 ISR(PCINT2_vect)
 {
+  newD = PIND; // update current state of port D
+
   if (debounceReady)
   {
-    newD = PIND; // update current state of port D
-
     // SEEK changed (PCINT) - rising or falling edge
     if ((newD ^ oldD) & (1 << SEEK))
     {

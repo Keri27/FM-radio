@@ -111,31 +111,32 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
     return 1;
 }
 
-void display_updateFreq(float actFreq)
+void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail)
 {
-    char str[10]; // Buffer (e.g. "106.50")
-    dtostrf(actFreq, 4, 1, str);
+    char str1[8]; // Buffer (e.g. "106.50")
+    char str2[3];
+
+    dtostrf(actFreq, 4, 1, str1);
+    itoa(rssi, str2, /* dec */ 10); // integer to ascii
 
     u8g2_ClearBuffer(&u8g2);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 40, 28, str);
+    u8g2_DrawStr(&u8g2, 40, 28, str1); // frequency
 
-    u8g2_SendBuffer(&u8g2);
-}
-
-void display_seekFail(float actFreq)
-{
-    char str[10]; // Buffer (e.g. "106.50")
-    dtostrf(actFreq, 4, 1, str);
-
-    u8g2_ClearBuffer(&u8g2);
-
-    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 40, 28, str);
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
-    u8g2_DrawStr(&u8g2, 30, 45, "Stanice");
-    u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+    if (seekFail)
+    {
+        u8g2_DrawStr(&u8g2, 30, 45, "Stanice");
+        u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+    }
+
+    u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
+    //u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
+    u8g2_DrawStr(&u8g2, 65, 10, str2); // RSSI
+    if (!stereo) u8g2_DrawStr(&u8g2, 20, 10, "M"); // stereo/mono indicator
+    else u8g2_DrawStr(&u8g2, 20, 10, "S");
+
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -146,7 +147,7 @@ void display_changeVolume(uint8_t volume)
 
     if (volume) volume = (volume + 1) / 2;
     else volume = 0;
-    itoa(volume, str, /* dec */ 10); // integer to ascii;
+    itoa(volume, str, /* dec */ 10); // integer to ascii
 
     u8g2_ClearBuffer(&u8g2);
 

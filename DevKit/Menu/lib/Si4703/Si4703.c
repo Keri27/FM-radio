@@ -256,6 +256,20 @@ bool SI4703_SeekClear()
 	return true;
 }
 
+uint8_t SI4703_GetRSSI()
+{
+	//if (!SI4703_RxRegs()) return false; // Uncomment if NOT used earlier (SeekUp)
+	uint8_t rssi = SI4703_Regs[REG_STATUSRSSI] & MASK_RSSI;
+	return rssi;
+}
+
+uint8_t SI4703_GetStereo() // stereo status indicator
+{
+	// if (!SI4703_RxRegs()) return false; // Uncomment if NOT used earlier (SeekUp)
+	uint8_t stereo = SI4703_Regs[REG_STATUSRSSI] & (1 << IDX_ST);
+	return stereo;
+}
+
 bool SI4703_CheckRDSReady()
 {
 	if(!SI4703_RxRegs()) return false;
