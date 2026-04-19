@@ -69,7 +69,7 @@ bool SI4703_Init()
 	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
 
 	/* Enable Seek/Tune Complete Interrupt */
-	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
 
 	/* Enable RDS */
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDS);
@@ -78,8 +78,8 @@ bool SI4703_Init()
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
 
 	/* Set GPIO 2 STC/RDS interrupt */
-	SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
-	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
+	//SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
 
 	/* Set Band as 00 (Europe) */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~((1 << IDX_BAND0) | (1 << IDX_BAND1));
@@ -102,8 +102,6 @@ bool SI4703_Init()
 	/* Set SKCNT (impulse noice treshold), Recommended 0x08 */
 	SI4703_Regs[REG_SYSCONFIG3] &= ~(MASK_SKCNT);	
 	SI4703_Regs[REG_SYSCONFIG3] |= 0x08; // max: 15
-
-
 
 	if (!SI4703_TxRegs()) return false;
 

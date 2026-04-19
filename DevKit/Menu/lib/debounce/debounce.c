@@ -90,8 +90,8 @@ void Debounce(Button_t *btn, uint8_t currentSample)
             btn->debounceCount = 0;
             debounceReady = 1;
 
-            tim0_stop();           
-            tim0_ovf_disable();
+            tim2_stop();           
+            tim2_ovf_disable();
         }
     }
     else // Sample changed

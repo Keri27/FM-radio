@@ -201,7 +201,7 @@ bool SI4703_SetFreq(float freq)
 
 bool SI4703_SeekUp()
 {
-	if(!SI4703_RxRegs()) return false;
+	if(!SI4703_RxRegs()) return false; // if false: I2C failure
 	
 	/* Set SEEK bit */
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEK);
@@ -209,7 +209,7 @@ bool SI4703_SeekUp()
 	if(!SI4703_TxRegs()) return false;
 	
 	TCNT1 = 0;
-	tim1_ovf_2097ms();
+	tim1_ovf_524ms();
 	tim1_ovf_enable();
 
 	return true;

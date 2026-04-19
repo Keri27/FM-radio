@@ -9,7 +9,7 @@
 #include "Si4703.h"
 #include "DEP128064C1_TWI.h"
 
-#define LED PD6
+#define LED PD7
 #define SD1 PB2 // Speaker shutdown (TPA741)
 #define SD2 PC1 // Headphones shutdown (TPA6111)
 #define GPIO2 PD2 // RDS/STC interrupt
@@ -40,6 +40,7 @@ int main(void)
   gpio_mode_output(&DDRB, SD1);
   gpio_mode_output(&DDRC, SD2);
 
+  gpio_write_low(&PORTD, LED);
   gpio_write_high(&PORTC, SD2);
   gpio_write_low(&PORTB, SD1); // enable speaker (default)
 
@@ -242,7 +243,7 @@ int main(void)
 }
 
 /* Interrupt service routine TIMER0 overflow */
-ISR(TIMER0_OVF_vect)
+ISR(TIMER2_OVF_vect)
 {
   debounceTimer = 1;
 }
@@ -277,9 +278,9 @@ ISR(PCINT2_vect)
 
     debounceReady = 0;
     debounceTimer = 1;
-    TCNT0 = 0;
-    tim0_ovf_4ms();
-    tim0_ovf_enable();
+    TCNT2 = 0;
+    tim2_ovf_4ms();
+    tim2_ovf_enable();
   }
 
   oldD = newD;
