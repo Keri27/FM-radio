@@ -1,7 +1,8 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
-#include <avr/pgmspace.h>
+#include <avr/pgmspace.h> // ?
+#include <avr/eeprom.h>
 
 #include "gpio.h"
 #include "debounce.h"
@@ -22,10 +23,15 @@
 
 uint8_t change = 0;
 uint8_t bttn_released = 1;
-uint8_t screen = 0; // carries index of the current screen - "0" belongs to the FM radio
-uint8_t volume = 7; // volume 0-15 step 2?
-uint8_t output = 0; // audio output: speaker (default) or headphones
+uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
+
+uint8_t volume; // volume: 0, 1, 3, 5, ..., 15
+uint8_t output; // audio output: speaker (default) or headphones
 uint8_t brightness = 150; // brightness of the OLED <0, 100> %; step: 10 %
+
+/* EEPROM (holds stored values after powerdown) */
+uint8_t ee_volume EEMEM;
+uint8_t ee_output EEMEM;
 
 float actFreq;
 
@@ -41,8 +47,8 @@ int main(void)
   gpio_mode_output(&DDRC, SD2);
 
   gpio_write_low(&PORTD, LED);
+  gpio_write_high(&PORTB, SD1);
   gpio_write_high(&PORTC, SD2);
-  gpio_write_low(&PORTB, SD1); // enable speaker (default)
 
   oldD = PIND; // update current state of port D
 
@@ -64,6 +70,26 @@ int main(void)
   u8g2_ClearDisplay(&u8g2);
 
   SI4703_Init();
+
+  /* Loading values from EEPROM */
+  output = eeprom_read_byte(&ee_output); // load value from EEPROM
+  if (output > 1) output = 0; // in case the stored value is out of range (0,1): enable reproductor
+  if (!output)
+  {
+    gpio_write_high(&PORTC, SD2);
+    gpio_write_low(&PORTB, SD1); // enable speaker (default)
+    SI4703_SetMono(1);
+  }
+  else
+  {
+    gpio_write_high(&PORTB, SD1);
+    gpio_write_low(&PORTC, SD2); // enable headphones
+    SI4703_SetMono(0);
+  }
+
+  volume = eeprom_read_byte(&ee_volume);
+  if (volume > 15) volume = 7;
+  SI4703_SetVolume(volume);
 
   if (SI4703_SeekUp())
   {
@@ -162,6 +188,7 @@ int main(void)
             if (volume) volume += 2; // if mute
             else volume = 1;
             SI4703_SetVolume(volume);
+            eeprom_update_byte(&ee_volume, volume); // save value to EEPROM
           }
           display_changeVolume(volume);
         }
@@ -172,11 +199,13 @@ int main(void)
           {
             volume -= 2;
             SI4703_SetVolume(volume);
+            eeprom_update_byte(&ee_volume, volume);
           }
           else if (volume == 1) 
           {
             volume = 0; // mute
             SI4703_SetVolume(volume);
+            eeprom_update_byte(&ee_volume, volume);
           }
           display_changeVolume(volume);
         }
@@ -191,11 +220,11 @@ int main(void)
         /* Switch to headphones */
         if (buttons[DOWN_IDX].stableState == 1)
         {
-          //stereo mode??
           gpio_write_high(&PORTB, SD1);
           gpio_write_low(&PORTC, SD2);
-          SI4703_SetMono(0);
+          SI4703_SetMono(0); // switch to stereo (depends on quality of the received signal)
           display_changeAudioOutput(output = 1);
+          eeprom_update_byte(&ee_output, output);
         }
         /* Switch to speaker */
         else if (buttons[UP_IDX].stableState == 1)
@@ -204,6 +233,7 @@ int main(void)
           gpio_write_low(&PORTB, SD1);
           SI4703_SetMono(1);
           display_changeAudioOutput(output = 0);
+          eeprom_update_byte(&ee_output, output);
         }
         else
         {

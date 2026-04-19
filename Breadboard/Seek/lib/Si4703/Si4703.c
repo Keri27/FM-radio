@@ -85,9 +85,9 @@ bool SI4703_Init()
 	/* Set Space as 01 (Europe) */
 	SI4703_Regs[REG_SYSCONFIG2] |= (1 << IDX_SPACE0);
 			
-	/* Set Volume as 0x0F */
-	SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0; // Clear volume bits (0000)
-	SI4703_Regs[REG_SYSCONFIG2] |= 0x0F; // Set volume to max (1111)
+	/* Set Volume as 0x0F (the volume is set in main init)*/
+	//SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0; // Clear volume bits (0000)
+	//SI4703_Regs[REG_SYSCONFIG2] |= 0x0F; // Set volume to max (1111)
 	
 	/* Set Seek Threshold, Recommended 0x19 */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~(MASK_SEEKTH);
@@ -208,6 +208,7 @@ bool SI4703_SeekUp()
 	
 	if(!SI4703_TxRegs()) return false;
 	
+	/* Watchdog: If STC interrupt failure*/
 	TCNT1 = 0;
 	tim1_ovf_524ms();
 	tim1_ovf_enable();
@@ -248,7 +249,7 @@ bool SI4703_SeekClear()
 		if (!SI4703_RxRegs()) return false;
 
 		if ((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) == 0) break;
-		_delay_ms(60); /* Seek or Tune Time Delay */
+		_delay_ms(30);
 
 		timeout++;
 		if (timeout > 5) return false;
