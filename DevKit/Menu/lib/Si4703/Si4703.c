@@ -296,7 +296,7 @@ static bool SI4703_Wait(void)
 		_delay_ms(80);	/* Seek or Tune Time Delay */
 		
 		timeout++;
-		if(timeout > 15) return false;
+		if(timeout > 20) return false;
 	}
 	
 	timeout = 0;

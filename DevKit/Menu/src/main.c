@@ -1,7 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
-#include <avr/pgmspace.h> // ?
 #include <avr/eeprom.h>
 
 #include "gpio.h"
@@ -9,6 +8,7 @@
 #include "timer.h"
 #include "Si4703.h"
 #include "DEP128064C1_TWI.h"
+#include "lipol.h"
 
 #define LED PD7
 #define SD1 PB2 // Speaker shutdown (TPA741)
@@ -21,8 +21,15 @@
 #define DOWN_IDX 2
 #define MENU_IDX 3
 
-uint8_t change = 0;
-uint8_t bttn_released = 1;
+#define TIM0_WAIT_OVF_NUM 15
+#define TIM0_FREQ_OVF_NUM 8
+
+volatile uint8_t change = 0;
+volatile uint8_t tim0Cycles = 0;
+volatile uint8_t longPress = 0;
+volatile uint8_t fastFreqChange = 0;
+volatile uint8_t updateInfo = 0; // battery, RDS
+
 uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
 uint8_t rssi = 0;
 uint8_t stereo = 0;
@@ -31,6 +38,7 @@ uint8_t seekFail = 0;
 uint8_t volume; // volume: 0, 1, 3, 5, ..., 15
 uint8_t output; // audio output: speaker (default) or headphones
 uint8_t brightness = 150; // brightness of the OLED <0, 100> %; step: 10 %
+uint8_t battery; // battery perctentage <0, 100> %; step: 10 %
 
 /* EEPROM (holds stored values after powerdown) */
 uint8_t ee_volume EEMEM;
@@ -64,13 +72,17 @@ int main(void)
   /* Enable global interrupts */
   sei();
 
-  /* 3-wire SPI constructor */
+  /* OLED I2C constructor */
   u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_hw_i2c_avr, u8x8_gpio_and_delay_avr); // U8G2_R2
 
   u8g2_InitDisplay(&u8g2);
   u8g2_SetPowerSave(&u8g2, 0);  // switch off power save mode
   u8g2_SetContrast(&u8g2, brightness); // <0; 255>
   u8g2_ClearDisplay(&u8g2);
+
+  /* Battery state */
+  ADC_Init();
+  battery = getBatteryPercentage(ADC_Read());
 
   SI4703_Init();
 
@@ -95,8 +107,15 @@ int main(void)
   SI4703_SetVolume(volume);
 
   /* Seek sequence */
-  if (SI4703_SeekUp()) seekFail = 0;
-  else seekFail = 1;
+  if (SI4703_SeekUp())
+  {
+    seekFail = 0;
+  }
+  else
+  {
+    seekFail = 1;
+    SI4703_SeekClear(); // If Seek fails due to SFBL or I2C failure, however seek_clear is needed only for I2C failure 
+  }
 
   actFreq = SI4703_GetFreq();
   rssi = SI4703_GetRSSI();
@@ -111,23 +130,25 @@ int main(void)
     {
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
-      // If any button pressed, debounce function finished and bttns have been released (last condition breaks the loop)
-      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))  // && bttn_released
+      // If any button pressed, debounce function finished and bttns have been released
+      if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))
       {
-        //bttn_released = 0;
         change = 1; // enable change (freq, RDS, menu ...)
 
         /* Change screen */
         if ((buttons[MENU_IDX].stableState == 1))
         {
-          if (screen == 3)
-          {
-            screen = 0;
-          }
-          else
-          {
-            screen++;
-          }
+          if (screen == 3) screen = 0;
+          else screen++;
+        }
+        /* Enter Fast frequency change mode */
+        else if ((buttons[UP_IDX].stableState == 1) || ((buttons[DOWN_IDX].stableState == 1)))
+        {
+          TCNT0 = 0;
+          tim0_ovf_33ms();
+          tim0_ovf_enable();
+
+          longPress = 1;
         }
       }
 
@@ -135,7 +156,16 @@ int main(void)
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
-        //bttn_released = 1;
+
+        /* Stop Fast freq change mode */
+        if (fastFreqChange)
+        {
+          tim0_stop();
+          tim0_ovf_disable();
+
+          fastFreqChange = 0;
+          tim0Cycles = 0;
+        }
       }
     }
 
@@ -146,12 +176,18 @@ int main(void)
       /* Screen 0: FM radio (default) */
       if (screen == 0) 
       {
+        /* SEEK station */
         if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
         { 
-          if (SI4703_SeekUp()) seekFail = 0;
-          else seekFail = 1;
-
-          SI4703_SeekClear();
+          if (SI4703_SeekUp())
+          {
+            seekFail = 0;
+          } 
+          else 
+          {
+            seekFail = 1;
+            SI4703_SeekClear();
+          }
 
           actFreq = SI4703_GetFreq();
           rssi = SI4703_GetRSSI();
@@ -159,16 +195,18 @@ int main(void)
 
           display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
+        /* Set frequency UP */
         else if (buttons[UP_IDX].stableState == 1) 
         {
-          actFreq += 0.1;
+          actFreq += 0.1; // get freq?
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
           SI4703_SetFreq(actFreq);
           display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
-        else if (buttons[DOWN_IDX].stableState == 1) 
+        /* Set frequency DOWN */
+        else if (buttons[DOWN_IDX].stableState == 1)      
         {
           actFreq += 0.1;
           rssi = SI4703_GetRSSI();
@@ -177,9 +215,9 @@ int main(void)
           SI4703_SetFreq(actFreq);
           display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
+        /* No action */
         else
         {
-          // get freq?
           display_updateChannel(actFreq, rssi, stereo, seekFail);
         }
       }
@@ -279,6 +317,41 @@ int main(void)
 }
 
 /* Interrupt service routine TIMER0 overflow */
+ISR(TIMER0_OVF_vect)
+{
+  /* Fast freq change mode: TIM0_FREQ_OVF_NUM x 33 ms = (198 ms) */
+  if (fastFreqChange)
+  {
+    if (tim0Cycles >= TIM0_FREQ_OVF_NUM)
+    {
+      //gpio_toggle(&PORTD, LED);
+      tim0Cycles = 0;
+
+      change = 1; // -> setFrequency()
+    }
+  }
+  /* Longpress detection: TIM0_WAIT_OVF_NUM x 33 ms = (495 ms + 198 ms) */
+  else if (longPress)
+  {
+    if (tim0Cycles >= TIM0_WAIT_OVF_NUM)
+    {
+      tim0Cycles = 0;
+
+      longPress = 0;
+      fastFreqChange = 1;
+    }
+  }
+
+  tim0Cycles++;
+}
+
+/* Interrupt service routine TIMER1 overflow */
+ISR(TIMER1_OVF_vect)
+{
+  updateInfo = 1;
+}
+
+/* Interrupt service routine TIMER2 overflow */
 ISR(TIMER2_OVF_vect)
 {
   debounceTimer = 1;

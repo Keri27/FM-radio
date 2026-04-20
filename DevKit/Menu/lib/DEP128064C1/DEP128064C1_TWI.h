@@ -2,7 +2,7 @@
 #define DEP128064C1_TWI_H_
 
 #include <avr/io.h>
-#include <stdbool.h>
+#include <stdint.h>
 #include "u8g2.h"
 
 /* Display pinout */

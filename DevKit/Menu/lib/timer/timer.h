@@ -56,6 +56,12 @@
 /** @brief Stop timer, prescaler 000 --> STOP */
 #define tim0_stop() TCCR0B &= ~((1<<CS02) | (1<<CS01) | (1<<CS00));
 
+/** @brief Set overflow ~8ms, prescaler 100 --> 256 */
+#define tim0_ovf_8ms() TCCR0B &= ~((1 << CS01) | (1 << CS00)); TCCR0B |= (1 << CS02);
+
+/** @brief Set overflow 33ms, prescaler 101 --> 1024 */
+#define tim0_ovf_33ms() TCCR0B &= ~(1 << CS01); TCCR0B |= (1 << CS02) | (1 << CS00);
+
 /** @brief Enable overflow interrupt, 1 --> enable */
 #define tim0_ovf_enable() TIMSK0 |= (1<<TOIE0);
 

@@ -88,7 +88,6 @@ int main(void)
       // If button is still pressed and debounce function finished -> long press
       if (((buttons[UP_IDX].stableState == 1) && (buttons[UP_IDX].debounceCount == 0)) ||
           ((buttons[DOWN_IDX].stableState == 1) && (buttons[DOWN_IDX].debounceCount == 0)))
-
       {
         TCNT1 = 0;
         tim1_ovf_524ms();
