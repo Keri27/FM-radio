@@ -110,13 +110,15 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
     return 1;
 }
 
-void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail)
+void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery)
 {
     char str1[8]; // Buffer (e.g. "106.50")
     char str2[3];
+    char str3[7];
 
     dtostrf(actFreq, 4, 1, str1);
     itoa(rssi, str2, /* dec */ 10); // integer to ascii
+    itoa(battery, str3, 10);
 
     u8g2_ClearBuffer(&u8g2);
 
@@ -130,12 +132,14 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
         u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
     }
 
-    u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     //u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
     u8g2_DrawStr(&u8g2, 65, 10, str2); // RSSI
     if (!stereo) u8g2_DrawStr(&u8g2, 20, 10, "M"); // stereo/mono indicator
     else u8g2_DrawStr(&u8g2, 20, 10, "S");
 
+    // strcat(str3, "%");
+    u8g2_DrawStr(&u8g2, 105, 10, str3); // battery percentage
+    // battery icon
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -201,8 +205,9 @@ void display_changeBrightness(uint8_t brightness)
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
     u8g2_DrawStr(&u8g2, 85, 31, "Jas");
+    strcat(str, "%");
     u8g2_DrawStr(&u8g2, 85, 45, str);
-    u8g2_DrawStr(&u8g2, 115, 45, "%");
+    //u8g2_DrawStr(&u8g2, 115, 45, "%");
 
     u8g2_SendBuffer(&u8g2);
 }

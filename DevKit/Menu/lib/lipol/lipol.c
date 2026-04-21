@@ -5,12 +5,11 @@
 /* Initializes the ADC module */
 void ADC_Init(void)
 {
-    // Set internal 1.1V reference
+    // Interní reference 1.1V
     ADMUX = (1 << REFS1) | (1 << REFS0);
 
-    // Enable ADC (ADEN) and set prescaler to 128 (ADPSx)
-    // 16 MHz / 128 = 125 kHz ADC clock
-    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1) | (1 << ADPS0);
+    // Zapnutí ADC a nastavení děličky na 64 (8 MHz / 64 = 125 kHz)
+    ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);
 }
 
 /*
@@ -21,14 +20,13 @@ void ADC_Init(void)
 uint16_t ADC_Read(void)
 {
     // Clear old channel bits and set the new one (preserve REFS bits)
-    ADMUX = (ADMUX & 0xF0) | (ADC6 & 0x0F);
+    ADMUX = (ADMUX & 0xF0) | (ADC_BATT & 0x0F);
 
     // Start the conversion
     ADCSRA |= (1 << ADSC);
 
     // Wait for the conversion to complete (hardware clears ADSC)
-    while (ADCSRA & (1 << ADSC))
-        ;
+    while (ADCSRA & (1 << ADSC));
 
     // Return the 16-bit result (automatically combines ADCL and ADCH)
     return ADC;

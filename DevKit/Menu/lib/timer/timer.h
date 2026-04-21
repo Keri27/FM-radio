@@ -42,6 +42,12 @@
 /** @brief Set overflow 524ms, prescaler 011 --> 64 */
 #define tim1_ovf_524ms() TCCR1B &= ~(1 << CS12); TCCR1B |= (1 << CS11) | (1 << CS10);
 
+/** @brief Set overflow ~2s (2.1s), prescaler 100 --> 256 */
+#define tim1_ovf_2s() TCCR1B &= ~((1 << CS11) | (1 << CS10)); TCCR1B |= (1 << CS12); // 2,1 s
+
+/** @brief Set overflow ~8s (8.4s), prescaler 101 --> 1024 */
+#define tim1_ovf_8s() TCCR1B &= ~(1 << CS11); TCCR1B |= (1 << CS12) | (1 << CS10); // 8,3 s
+
 /** @brief Enable overflow interrupt, 1 --> enable */
 #define tim1_ovf_enable() TIMSK1 |= (1<<TOIE1);
 

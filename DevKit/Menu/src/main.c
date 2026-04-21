@@ -1,6 +1,7 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include <stdint.h>
+#include <util/delay.h>
 #include <avr/eeprom.h>
 
 #include "gpio.h"
@@ -22,10 +23,12 @@
 #define MENU_IDX 3
 
 #define TIM0_WAIT_OVF_NUM 15
-#define TIM0_FREQ_OVF_NUM 8
+#define TIM0_FREQ_OVF_NUM 10
+#define TIM1_OVF_NUM 3
 
 volatile uint8_t change = 0;
 volatile uint8_t tim0Cycles = 0;
+volatile uint8_t tim1Cycles = 0;
 volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t updateInfo = 0; // battery, RDS
@@ -80,9 +83,7 @@ int main(void)
   u8g2_SetContrast(&u8g2, brightness); // <0; 255>
   u8g2_ClearDisplay(&u8g2);
 
-  /* Battery state */
   ADC_Init();
-  battery = getBatteryPercentage(ADC_Read());
 
   SI4703_Init();
 
@@ -120,8 +121,15 @@ int main(void)
   actFreq = SI4703_GetFreq();
   rssi = SI4703_GetRSSI();
   stereo = SI4703_GetStereo();
+  // battery = getBatteryPercentage(ADC_Read());
+  battery = ADC_Read();
 
-  display_updateChannel(actFreq, rssi, stereo, seekFail);
+  display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
+
+  /* Timer1 triggers update sequence (battery, RDS)*/
+  TCNT1 = 0;
+  tim1_ovf_8s();
+  tim1_ovf_enable();
 
   while (1)
   {
@@ -165,45 +173,47 @@ int main(void)
 
           fastFreqChange = 0;
           tim0Cycles = 0;
+          change = 0;
         }
       }
     }
 
-    if (change == 1) 
-    {
-      change = 0;
-
-      /* Screen 0: FM radio (default) */
-      if (screen == 0) 
+      if (change == 1) 
       {
-        /* SEEK station */
-        if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
-        { 
-          if (SI4703_SeekUp())
-          {
-            seekFail = 0;
-          } 
-          else 
-          {
-            seekFail = 1;
-            SI4703_SeekClear();
-          }
+        change = 0;
 
-          actFreq = SI4703_GetFreq();
-          rssi = SI4703_GetRSSI();
-          stereo = SI4703_GetStereo();
-
-          display_updateChannel(actFreq, rssi, stereo, seekFail);
-        }
-        /* Set frequency UP */
-        else if (buttons[UP_IDX].stableState == 1) 
+        /* Screen 0: FM radio (default) */
+        if (screen == 0) 
         {
-          actFreq += 0.1; // get freq?
-          rssi = SI4703_GetRSSI();
-          stereo = SI4703_GetStereo();
+          /* SEEK station */
+          if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
+          { 
+            if (SI4703_SeekUp())
+            {
+              seekFail = 0;
+            } 
+            else 
+            {
+              seekFail = 1;
+              SI4703_SeekClear();
+            }
+            
+            //RDS
+            actFreq = SI4703_GetFreq();
+            rssi = SI4703_GetRSSI();
+            stereo = SI4703_GetStereo();
+
+            display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
+          }
+          /* Set frequency UP */
+          else if (buttons[UP_IDX].stableState == 1) 
+          {
+            actFreq += 0.1; // get freq?
+            rssi = SI4703_GetRSSI();
+            stereo = SI4703_GetStereo();
 
           SI4703_SetFreq(actFreq);
-          display_updateChannel(actFreq, rssi, stereo, seekFail);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
         }
         /* Set frequency DOWN */
         else if (buttons[DOWN_IDX].stableState == 1)      
@@ -213,12 +223,19 @@ int main(void)
           stereo = SI4703_GetStereo();
 
           SI4703_SetFreq(actFreq);
-          display_updateChannel(actFreq, rssi, stereo, seekFail);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
         }
-        /* No action */
+        /* No user action */
         else
         {
-          display_updateChannel(actFreq, rssi, stereo, seekFail);
+          // Update info: Battery, RDS... every 30 s
+          if (updateInfo)
+          {
+            //battery = getBatteryPercentage(ADC_Read());
+            battery = ADC_Read();
+          }
+
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
         }
       }
       /* Screen 1: Volume settings */
@@ -348,7 +365,15 @@ ISR(TIMER0_OVF_vect)
 /* Interrupt service routine TIMER1 overflow */
 ISR(TIMER1_OVF_vect)
 {
-  updateInfo = 1;
+  /* Every 30 s update screen0 info */
+  if (tim1Cycles >= TIM1_OVF_NUM)
+  {
+    tim1Cycles = 0;
+    updateInfo = 1;
+    change = 1;
+  }
+
+  tim1Cycles++;
 }
 
 /* Interrupt service routine TIMER2 overflow */

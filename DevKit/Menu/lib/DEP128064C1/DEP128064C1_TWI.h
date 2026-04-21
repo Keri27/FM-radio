@@ -15,7 +15,7 @@ extern u8g2_t u8g2;
 uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr);
 
-void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail);
+void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery);
 void display_seekFail(float actFreq);
 
 void display_changeVolume(uint8_t volume);
