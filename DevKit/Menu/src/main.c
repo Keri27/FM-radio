@@ -121,8 +121,7 @@ int main(void)
   actFreq = SI4703_GetFreq();
   rssi = SI4703_GetRSSI();
   stereo = SI4703_GetStereo();
-  // battery = getBatteryPercentage(ADC_Read());
-  battery = ADC_Read();
+  battery = getBatteryPercentage(ADC_Read());
 
   display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
 
@@ -231,8 +230,7 @@ int main(void)
           // Update info: Battery, RDS... every 30 s
           if (updateInfo)
           {
-            //battery = getBatteryPercentage(ADC_Read());
-            battery = ADC_Read();
+            battery = getBatteryPercentage(ADC_Read());
           }
 
           display_updateChannel(actFreq, rssi, stereo, seekFail, battery);

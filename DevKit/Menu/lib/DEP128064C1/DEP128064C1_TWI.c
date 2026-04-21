@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 #include <util/delay.h>
 
 #include "gpio.h"
@@ -11,6 +12,17 @@
 #endif
 
 u8g2_t u8g2;
+
+/* 8x6 battery icon */
+const unsigned char battery_icon[] =
+{
+    0xfc, // . . █ █ █ █ █ █
+    0xff, // █ █ █ █ █ █ █ █
+    0xff, // █ █ █ █ █ █ █ █
+    0xff, // █ █ █ █ █ █ █ █
+    0xff, // █ █ █ █ █ █ █ █
+    0xfc  // . . █ █ █ █ █ █
+};
 
 /* Hardware I2C (TWI) callback function for u8g2 library */
 uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -26,7 +38,8 @@ uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *a
         {
             TWDR = *data++; // Load the next byte into TWI Data Register
             TWCR = 0x84;    // Clear TWINT flag to start transmission (0x84 = TWINT | TWEN)
-            while ((TWCR & 0x80) == 0); // Wait until transmission is complete (TWINT flag is set)
+            while ((TWCR & 0x80) == 0)
+                ; // Wait until transmission is complete (TWINT flag is set)
             arg_int--;
         }
         break;
@@ -45,18 +58,21 @@ uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *a
     case U8X8_MSG_BYTE_START_TRANSFER:
         /* 1. Generate and send START condition */
         TWCR = _BV(TWINT) | _BV(TWSTA) | _BV(TWEN);
-        while ((TWCR & _BV(TWINT)) == 0); // Wait for START to be transmitted
+        while ((TWCR & _BV(TWINT)) == 0)
+            ; // Wait for START to be transmitted
 
         /* 2. Send the target I2C device address */
         TWDR = u8x8_GetI2CAddress(u8x8);
         TWCR = _BV(TWINT) | _BV(TWEN);
-        while ((TWCR & _BV(TWINT)) == 0); // Wait for address to be transmitted
+        while ((TWCR & _BV(TWINT)) == 0)
+            ; // Wait for address to be transmitted
         break;
 
     case U8X8_MSG_BYTE_END_TRANSFER:
         /* Generate and send STOP condition */
         TWCR = _BV(TWINT) | _BV(TWEN) | _BV(TWSTO);
-        while (TWCR & _BV(TWSTO)); // Wait for the hardware to auto-clear the STOP bit
+        while (TWCR & _BV(TWSTO))
+            ; // Wait for the hardware to auto-clear the STOP bit
         break;
     }
     return 1;
@@ -113,8 +129,8 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
 void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery)
 {
     char str1[8]; // Buffer (e.g. "106.50")
-    char str2[3];
-    char str3[7];
+    char str2[4];
+    char str3[8];
 
     dtostrf(actFreq, 4, 1, str1);
     itoa(rssi, str2, /* dec */ 10); // integer to ascii
@@ -128,18 +144,21 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     if (seekFail)
     {
-        u8g2_DrawStr(&u8g2, 30, 45, "Stanice");
+        u8g2_DrawStr(&u8g2, 32, 45, "Stanice");
         u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
     }
 
-    //u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
-    u8g2_DrawStr(&u8g2, 65, 10, str2); // RSSI
-    if (!stereo) u8g2_DrawStr(&u8g2, 20, 10, "M"); // stereo/mono indicator
-    else u8g2_DrawStr(&u8g2, 20, 10, "S");
+    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
+    // strcat("RSSI:", str2);
+    u8g2_DrawStr(&u8g2, 55, 8, str2); // RSSI
+    if (!stereo)
+        u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
+    else
+        u8g2_DrawStr(&u8g2, 20, 8, "S");
 
-    // strcat(str3, "%");
-    u8g2_DrawStr(&u8g2, 105, 10, str3); // battery percentage
-    // battery icon
+    u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
+    strcat(str3, "%");
+    u8g2_DrawStr(&u8g2, 110, 8, str3); // battery percentage
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -148,8 +167,10 @@ void display_changeVolume(uint8_t volume)
 {
     char str[3]; // 1 ascii char = 1B + end sign + reserve
 
-    if (volume) volume = (volume + 1) / 2;
-    else volume = 0;
+    if (volume)
+        volume = (volume + 1) / 2;
+    else
+        volume = 0;
     itoa(volume, str, /* dec */ 10); // integer to ascii
 
     u8g2_ClearBuffer(&u8g2);
@@ -159,7 +180,8 @@ void display_changeVolume(uint8_t volume)
     u8g2_DrawStr(&u8g2, 20, 50, str);
 
     u8g2_DrawFrame(&u8g2, 13, 25, 84, 6);
-    if (volume) u8g2_DrawBox(&u8g2, 15, 27, (volume) * 10, 2);
+    if (volume)
+        u8g2_DrawBox(&u8g2, 15, 27, (volume) * 10, 2);
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -176,7 +198,7 @@ void display_changeAudioOutput(uint8_t output)
 
     u8g2_DrawCircle(&u8g2, 20, 30, 5, U8G2_DRAW_ALL);
     u8g2_DrawCircle(&u8g2, 20, 50, 5, U8G2_DRAW_ALL);
-    
+
     /* Audio output: Speaker */
     if (!output)
     {
@@ -207,7 +229,7 @@ void display_changeBrightness(uint8_t brightness)
     u8g2_DrawStr(&u8g2, 85, 31, "Jas");
     strcat(str, "%");
     u8g2_DrawStr(&u8g2, 85, 45, str);
-    //u8g2_DrawStr(&u8g2, 115, 45, "%");
+    // u8g2_DrawStr(&u8g2, 115, 45, "%");
 
     u8g2_SendBuffer(&u8g2);
 }

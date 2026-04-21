@@ -33,12 +33,16 @@ uint16_t ADC_Read(void)
 }
 
 /*
- * Non-linear Li-Po discharge curve (in mV)
- * 0% = 3300mV, 100% = 4200mV
+ * Non-linear Li-Po discharge curve (in mV).
+ * 3300 - 4200 mV (0-100 %).
  */
-const uint16_t lipo_curve[11] = {
+const uint16_t lipo_curve_mv[] = {
     3300, // 0%
+    3338, // 1%
+    3414, // 3%
+    3490, // 5%
     3680, // 10%
+    3710, // 15%
     3740, // 20%
     3770, // 30%
     3790, // 40%
@@ -50,10 +54,14 @@ const uint16_t lipo_curve[11] = {
     4200  // 100% (Fully charged)
 };
 
+const uint8_t lipo_curve_pct[] = {
+    0, 1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100
+};
+
 /*
  * Calculates battery percentage
  * Input: Voltage in mV (e.g., 3850)
- * Output: Percentage 0-100 (in steps of 10)
+ * Output: Percentage 0-100 (non-linear mapping)
  */
 uint8_t getBatteryPercentage(uint16_t rawADC)
 {
@@ -62,20 +70,20 @@ uint8_t getBatteryPercentage(uint16_t rawADC)
 
     // 2. Calculate actual battery voltage (divider ratio = 4.3)
     // Note: Using * 43 / 10 instead of * 4.3 to keep it 100% integer math!
-    uint16_t voltage = (pinVoltage * 43) / 10;
+    uint32_t batVoltage = (pinVoltage * 43U) / 10U;
 
     // 3. Out of bounds protection
-    if (voltage >= 4200)
+    if (batVoltage >= 4200)
         return 100;
-    if (voltage <= 3300)
+    if (batVoltage <= 3300)
         return 0;
 
     // 4. Iterate from 100% down to 0%
-    for (int8_t i = 10; i >= 0; i--)
+    for (int8_t i = (int8_t)(sizeof(lipo_curve_mv) / sizeof(lipo_curve_mv[0])) - 1; i >= 0; i--)
     {
-        if (voltage >= lipo_curve[i])
+        if (batVoltage >= lipo_curve_mv[i])
         {
-            return i * 10; // Match found
+            return lipo_curve_pct[i];
         }
     }
 
