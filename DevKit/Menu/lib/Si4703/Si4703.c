@@ -12,6 +12,7 @@
 #endif
 
 #include <util/delay.h>
+#include <stdlib.h>
 
 #include "SI4703.h"
 #include "128A_TWI.h"
@@ -20,7 +21,7 @@ _radioInfo radioInfo;
 uint16_t SI4703_Regs[16] = {0,};
 
 static bool SI4703_Wait(void);
-static bool SI4703_RxRegs(void);
+//static bool SI4703_RxRegs(void); // used in main.c
 static bool SI4703_TxRegs(void);
 static void SI4703_Reset(void);
 
@@ -59,6 +60,9 @@ bool SI4703_Init()
 
 	/* Set Force Mode for single speaker */
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO);
+
+	/* Set RDS mode Verbose (BLER) */
+	SI4703_Regs[REG_POWERCFG] |= MASK_RDSM;
 
 	/* Set Seek Mode as Stop at band limit (disabled as default) */
 	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
@@ -320,7 +324,7 @@ static bool SI4703_Wait(void)
 	return !seekFail; // if seekFail return false
 }
 
-static bool SI4703_RxRegs()
+bool SI4703_RxRegs()
 {
 	uint8_t buffer[32];
 	
@@ -360,6 +364,44 @@ static bool SI4703_TxRegs()
 	if(!TWI_TxBuffer(SI4703_DEVICEADDR, buffer, sizeof(buffer))) return false;
 	
 	return true;
+}
+
+const char* SI4703_RDSProgrammeName()
+{	
+	// BLERA: if 3 or more mistakes (BLERA == 10 (2), 11 (3)), unreliable data
+	if ((SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >= 2)
+	{
+		return "Spatny signal";
+		// or find out the station name from Program service
+	}
+
+	// if(!SI4703_RxRegs()) return false; // not needed if RxRegs used right before this function
+	uint16_t PIcode = SI4703_Regs[REG_RDSA];
+
+	/* Debug: show raw programmCode in hex */
+	//char debugStr[10];
+	//return itoa(PIcode, debugStr, 16);
+
+	switch (PIcode)
+	{
+	/*
+	 * 1st num/1st 4 bits: Country code: CZ - 2
+	 * 2nd num: Type of coverage: 0 - local, 2 - national, 3 - interregional
+	 * 3rd + 4th: Program ref num: 5B - Krokodyl (only in CZ!)
+	 */
+
+	/* Jihomoravsky kraj (Brno) */
+	case 0x23a2: return "Krokodyl";
+	case 0x232F: return "Radiozurnal";
+	case 0x2203: return "Impuls";
+	case 0x2204: return "Evropa 2";
+	case 0x2205: return "Frekvence 1";
+	case 0x20BA: return "City Brno";
+
+	/* Pardubicky kraj (Pardubice) */
+
+	default: return "Neznama st.";
+	}
 }
 
 static void SI4703_Reset(void)

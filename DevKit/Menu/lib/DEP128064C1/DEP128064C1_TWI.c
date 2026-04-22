@@ -139,6 +139,7 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
     u8g2_ClearBuffer(&u8g2);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
+    // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center freq
     u8g2_DrawStr(&u8g2, 40, 28, str1); // frequency
 
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
@@ -146,6 +147,49 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
     {
         u8g2_DrawStr(&u8g2, 32, 45, "Stanice");
         u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+    }
+
+    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
+    // strcat("RSSI:", str2);
+    u8g2_DrawStr(&u8g2, 55, 8, str2); // RSSI
+    if (!stereo)
+        u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
+    else
+        u8g2_DrawStr(&u8g2, 20, 8, "S");
+
+    u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
+    strcat(str3, "%");
+    u8g2_DrawStr(&u8g2, 110, 8, str3); // battery percentage
+
+    u8g2_SendBuffer(&u8g2);
+}
+
+void display_updateRDS(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery, const char *programmeName)
+{
+    char str1[8]; // Buffer (e.g. "106.50")
+    char str2[4];
+    char str3[8];
+
+    dtostrf(actFreq, 4, 1, str1);
+    itoa(rssi, str2, /* dec */ 10); // integer to ascii
+    itoa(battery, str3, 10);
+
+    u8g2_ClearBuffer(&u8g2);
+
+    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
+    // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center freq
+    u8g2_DrawStr(&u8g2, 40, 28, str1); // frequency
+
+    u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
+    if (seekFail)
+    {
+        u8g2_DrawStr(&u8g2, 32, 45, "Stanice");
+        u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+    }
+    else
+    {
+        // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center text
+        u8g2_DrawStr(&u8g2, 25, 50, programmeName); // e.g. Radio Krokodyl
     }
 
     // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI

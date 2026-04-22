@@ -36,7 +36,8 @@ uint16_t ADC_Read(void)
  * Non-linear Li-Po discharge curve (in mV).
  * 3300 - 4200 mV (0-100 %).
  */
-const uint16_t lipo_curve_mv[] = {
+const uint16_t lipo_curve_mv[] = 
+{
     3300, // 0%
     3338, // 1%
     3414, // 3%
@@ -51,11 +52,13 @@ const uint16_t lipo_curve_mv[] = {
     3920, // 70%
     3980, // 80%
     4060, // 90%
+    4130, // 95 %
     4200  // 100% (Fully charged)
 };
 
-const uint8_t lipo_curve_pct[] = {
-    0, 1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 100
+const uint8_t lipo_curve_pct[] = 
+{
+    0, 1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100
 };
 
 /*

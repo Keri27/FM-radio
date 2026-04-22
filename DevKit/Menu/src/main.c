@@ -12,8 +12,8 @@
 #include "lipol.h"
 
 #define LED PD7
-#define SD1 PB2 // Speaker shutdown (TPA741)
-#define SD2 PC1 // Headphones shutdown (TPA6111)
+#define SD1 PB2   // Speaker shutdown (TPA741)
+#define SD2 PC1   // Headphones shutdown (TPA6111)
 #define GPIO2 PD2 // RDS/STC interrupt
 
 /* For clarity (do not change)*/
@@ -23,7 +23,7 @@
 #define MENU_IDX 3
 
 #define TIM0_WAIT_OVF_NUM 15
-#define TIM0_FREQ_OVF_NUM 10
+#define TIM0_FREQ_OVF_NUM 12
 #define TIM1_OVF_NUM 3
 
 volatile uint8_t change = 0;
@@ -32,16 +32,18 @@ volatile uint8_t tim1Cycles = 0;
 volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t updateInfo = 0; // battery, RDS
+volatile uint8_t seek = 1;       // battery, RDS
 
 uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
 uint8_t rssi = 0;
 uint8_t stereo = 0;
 uint8_t seekFail = 0;
 
-uint8_t volume; // volume: 0, 1, 3, 5, ..., 15
-uint8_t output; // audio output: speaker (default) or headphones
+uint8_t volume;           // volume: 0, 1, 3, 5, ..., 15
+uint8_t output;           // audio output: speaker (default) or headphones
 uint8_t brightness = 150; // brightness of the OLED <0, 100> %; step: 10 %
-uint8_t battery; // battery perctentage <0, 100> %; step: 10 %
+uint8_t battery;          // battery perctentage <0, 100> %; step: 10 %
+const char *programmeName;
 
 /* EEPROM (holds stored values after powerdown) */
 uint8_t ee_volume EEMEM;
@@ -49,13 +51,20 @@ uint8_t ee_output EEMEM;
 
 float actFreq;
 
+static inline void timer1_restartSchedule(uint8_t RdsAfter8s)
+{
+  TCNT1 = 0;
+  tim1Cycles = 0;
+  updateInfo = RdsAfter8s;
+}
+
 int main(void)
 {
   gpio_mode_input_pullup(&DDRD, UP);
   gpio_mode_input_pullup(&DDRD, DOWN);
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, MENU);
-  //gpio_mode_input_pullup(&DDRD, GPIO2);
+  // gpio_mode_input_pullup(&DDRD, GPIO2);
   gpio_mode_output(&DDRD, LED);
   gpio_mode_output(&DDRB, SD1);
   gpio_mode_output(&DDRC, SD2);
@@ -79,7 +88,7 @@ int main(void)
   u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_hw_i2c_avr, u8x8_gpio_and_delay_avr); // U8G2_R2
 
   u8g2_InitDisplay(&u8g2);
-  u8g2_SetPowerSave(&u8g2, 0);  // switch off power save mode
+  u8g2_SetPowerSave(&u8g2, 0);         // switch off power save mode
   u8g2_SetContrast(&u8g2, brightness); // <0; 255>
   u8g2_ClearDisplay(&u8g2);
 
@@ -89,7 +98,8 @@ int main(void)
 
   /* Loading values from EEPROM */
   output = eeprom_read_byte(&ee_output); // load value from EEPROM
-  if (output > 1) output = 0; // in case the stored value is out of range (0,1): enable reproductor
+  if (output > 1)
+    output = 0; // in case the stored value is out of range (0,1): enable reproductor
   if (!output)
   {
     gpio_write_high(&PORTC, SD2);
@@ -104,7 +114,8 @@ int main(void)
   }
 
   volume = eeprom_read_byte(&ee_volume);
-  if (volume > 15) volume = 7;
+  if (volume > 15)
+    volume = 7;
   SI4703_SetVolume(volume);
 
   /* Seek sequence */
@@ -115,15 +126,17 @@ int main(void)
   else
   {
     seekFail = 1;
-    SI4703_SeekClear(); // If Seek fails due to SFBL or I2C failure, however seek_clear is needed only for I2C failure 
+    SI4703_SeekClear(); // If Seek fails due to SFBL or I2C failure, however seek_clear is needed only for I2C failure
   }
 
   actFreq = SI4703_GetFreq();
   rssi = SI4703_GetRSSI();
   stereo = SI4703_GetStereo();
   battery = getBatteryPercentage(ADC_Read());
+  _delay_ms(90); // wait to get up-to-date RDS
+  programmeName = SI4703_RDSProgrammeName();
 
-  display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
+  display_updateRDS(actFreq, rssi, stereo, seekFail, battery, programmeName);
 
   /* Timer1 triggers update sequence (battery, RDS)*/
   TCNT1 = 0;
@@ -145,8 +158,10 @@ int main(void)
         /* Change screen */
         if ((buttons[MENU_IDX].stableState == 1))
         {
-          if (screen == 3) screen = 0;
-          else screen++;
+          if (screen == 3)
+            screen = 0;
+          else
+            screen++;
         }
         /* Enter Fast frequency change mode */
         else if ((buttons[UP_IDX].stableState == 1) || ((buttons[DOWN_IDX].stableState == 1)))
@@ -164,12 +179,13 @@ int main(void)
       {
         debounceReady = 1;
 
-        /* Stop Fast freq change mode */
-        if (fastFreqChange)
+        /* Stop long-press and fast frequency mode after release */
+        if (longPress || fastFreqChange)
         {
           tim0_stop();
           tim0_ovf_disable();
 
+          longPress = 0;
           fastFreqChange = 0;
           tim0Cycles = 0;
           change = 0;
@@ -177,47 +193,57 @@ int main(void)
       }
     }
 
-      if (change == 1) 
+    if (change == 1)
+    {
+      change = 0;
+
+      /* Screen 0: FM radio (default) */
+      if (screen == 0)
       {
-        change = 0;
-
-        /* Screen 0: FM radio (default) */
-        if (screen == 0) 
+        /* SEEK station */
+        if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
         {
-          /* SEEK station */
-          if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
-          { 
-            if (SI4703_SeekUp())
-            {
-              seekFail = 0;
-            } 
-            else 
-            {
-              seekFail = 1;
-              SI4703_SeekClear();
-            }
-            
-            //RDS
-            actFreq = SI4703_GetFreq();
-            rssi = SI4703_GetRSSI();
-            stereo = SI4703_GetStereo();
-
-            display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
-          }
-          /* Set frequency UP */
-          else if (buttons[UP_IDX].stableState == 1) 
+          if (SI4703_SeekUp())
           {
-            actFreq += 0.1; // get freq?
-            rssi = SI4703_GetRSSI();
-            stereo = SI4703_GetStereo();
+            seekFail = 0;
 
-          SI4703_SetFreq(actFreq);
+            /* Update info (RDS) in 8 s and restart 24 s cycle*/
+            timer1_restartSchedule(1);
+          }
+          else
+          {
+            seekFail = 1;
+            SI4703_SeekClear();
+
+            /* Cancel pending one-shot RDS update after failed seek */
+            updateInfo = 0;
+          }
+
+          actFreq = SI4703_GetFreq();
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+
           display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
         }
-        /* Set frequency DOWN */
-        else if (buttons[DOWN_IDX].stableState == 1)      
+        /* Set frequency UP */
+        else if (buttons[UP_IDX].stableState == 1)
         {
-          actFreq += 0.1;
+          /* Cancel 8 s one-shot update and restart 24 s cycle*/
+          timer1_restartSchedule(0);
+
+          actFreq += 0.1; // get freq?
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+
+          SI4703_SetFreq(actFreq);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery); // nehchceme zanehchat neaktualni nazev
+        }
+        /* Set frequency DOWN */
+        else if (buttons[DOWN_IDX].stableState == 1)
+        {
+          timer1_restartSchedule(0);
+
+          actFreq -= 0.1;
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
@@ -227,13 +253,15 @@ int main(void)
         /* No user action */
         else
         {
-          // Update info: Battery, RDS... every 30 s
-          if (updateInfo)
-          {
-            battery = getBatteryPercentage(ADC_Read());
-          }
+          // Update info: Battery, RDS... every half a minute or 8 s if seek found staion
+          battery = getBatteryPercentage(ADC_Read());
 
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
+          SI4703_RxRegs();
+          rssi = SI4703_GetRSSI();
+          stereo = SI4703_GetStereo();
+          programmeName = SI4703_RDSProgrammeName();
+
+          display_updateRDS(actFreq, rssi, stereo, seekFail, battery, programmeName);
         }
       }
       /* Screen 1: Volume settings */
@@ -242,10 +270,12 @@ int main(void)
         /* Increase volume */
         if (buttons[UP_IDX].stableState == 1)
         {
-          if (volume <= 13) 
+          if (volume <= 13)
           {
-            if (volume) volume += 2; // if mute
-            else volume = 1;
+            if (volume)
+              volume += 2; // if mute
+            else
+              volume = 1;
             SI4703_SetVolume(volume);
             eeprom_update_byte(&ee_volume, volume); // save value to EEPROM
           }
@@ -260,7 +290,7 @@ int main(void)
             SI4703_SetVolume(volume);
             eeprom_update_byte(&ee_volume, volume);
           }
-          else if (volume == 1) 
+          else if (volume == 1)
           {
             volume = 0; // mute
             SI4703_SetVolume(volume);
@@ -297,7 +327,7 @@ int main(void)
         else
         {
           display_changeAudioOutput(output);
-        }       
+        }
       }
       /* Screen 3: OLED brightness */
       else if (screen == 3)
@@ -339,7 +369,7 @@ ISR(TIMER0_OVF_vect)
   {
     if (tim0Cycles >= TIM0_FREQ_OVF_NUM)
     {
-      //gpio_toggle(&PORTD, LED);
+      // gpio_toggle(&PORTD, LED);
       tim0Cycles = 0;
 
       change = 1; // -> setFrequency()
@@ -363,15 +393,19 @@ ISR(TIMER0_OVF_vect)
 /* Interrupt service routine TIMER1 overflow */
 ISR(TIMER1_OVF_vect)
 {
+  tim1Cycles++;
+
   /* Every 30 s update screen0 info */
   if (tim1Cycles >= TIM1_OVF_NUM)
   {
     tim1Cycles = 0;
-    updateInfo = 1;
     change = 1;
   }
-
-  tim1Cycles++;
+  if (updateInfo)
+  {
+    updateInfo = 0;
+    change = 1;
+  }
 }
 
 /* Interrupt service routine TIMER2 overflow */
