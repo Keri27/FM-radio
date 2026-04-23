@@ -5974,6 +5974,12 @@
 		(uuid "aa97154c-d4e8-4662-a7bd-a0d456e2af42")
 	)
 	(junction
+		(at 147.32 63.5)
+		(diameter 0)
+		(color 0 0 0 0)
+		(uuid "b21c182b-a3dc-430c-8e33-84700caca6ee")
+	)
+	(junction
 		(at 252.73 102.87)
 		(diameter 0)
 		(color 0 0 0 0)
@@ -6068,12 +6074,6 @@
 		(diameter 0)
 		(color 0 0 0 0)
 		(uuid "eb9aa533-ec77-4c5a-9d91-d75f30003879")
-	)
-	(junction
-		(at 147.32 63.5)
-		(diameter 0)
-		(color 0 0 0 0)
-		(uuid "f9ea7ecc-a328-4205-a130-017dcae1c6fd")
 	)
 	(no_connect
 		(at 255.27 105.41)
@@ -6807,6 +6807,16 @@
 	)
 	(wire
 		(pts
+			(xy 147.32 63.5) (xy 154.94 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "2d1d9388-830a-44ec-9d37-69c425a3a85e")
+	)
+	(wire
+		(pts
 			(xy 154.94 156.21) (xy 154.94 158.75)
 		)
 		(stroke
@@ -6984,6 +6994,16 @@
 			(type default)
 		)
 		(uuid "3a13acef-2549-4cc3-ae41-671802bbe187")
+	)
+	(wire
+		(pts
+			(xy 147.32 63.5) (xy 147.32 66.04)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "3a7190f2-c84f-4ba9-af31-6fee2ccc5851")
 	)
 	(wire
 		(pts
@@ -7427,6 +7447,16 @@
 	)
 	(wire
 		(pts
+			(xy 162.56 63.5) (xy 171.45 63.5)
+		)
+		(stroke
+			(width 0)
+			(type default)
+		)
+		(uuid "65b5007d-13cd-4ed2-8ea7-7bf10d25f113")
+	)
+	(wire
+		(pts
 			(xy 166.37 92.71) (xy 173.99 92.71)
 		)
 		(stroke
@@ -7464,16 +7494,6 @@
 			(type default)
 		)
 		(uuid "678e0baa-b624-4f07-bed2-242400e9d5ca")
-	)
-	(wire
-		(pts
-			(xy 147.32 63.5) (xy 147.32 66.04)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "68adaa48-1a30-4b49-8302-a34b85e65004")
 	)
 	(wire
 		(pts
@@ -7694,16 +7714,6 @@
 			(type default)
 		)
 		(uuid "7dd93e99-a624-46f1-8a34-47cfc3a1987d")
-	)
-	(wire
-		(pts
-			(xy 147.32 63.5) (xy 171.45 63.5)
-		)
-		(stroke
-			(width 0)
-			(type default)
-		)
-		(uuid "7e89b0e9-2b25-4465-a65c-cbc77e02ad85")
 	)
 	(wire
 		(pts
@@ -8587,7 +8597,7 @@
 	)
 	(wire
 		(pts
-			(xy 147.32 63.5) (xy 147.32 62.23)
+			(xy 147.32 62.23) (xy 147.32 63.5)
 		)
 		(stroke
 			(width 0)
@@ -17766,6 +17776,73 @@
 			(project "FM_radio"
 				(path "/410b55e1-3407-41ac-ad87-1a6089b8359d"
 					(reference "Cxtl2")
+					(unit 1)
+				)
+			)
+		)
+	)
+	(symbol
+		(lib_id "Device:L")
+		(at 158.75 63.5 90)
+		(unit 1)
+		(exclude_from_sim no)
+		(in_bom yes)
+		(on_board yes)
+		(dnp no)
+		(uuid "dc16d332-21a0-4ff6-b055-d1f197d7e5ea")
+		(property "Reference" "Lant2"
+			(at 161.798 58.42 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Value" "350n"
+			(at 162.306 60.96 90)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+			)
+		)
+		(property "Footprint" "Inductor_SMD:L_0805_2012Metric_Pad1.15x1.40mm_HandSolder"
+			(at 158.75 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Datasheet" "~"
+			(at 158.75 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(property "Description" "Inductor"
+			(at 158.75 63.5 0)
+			(effects
+				(font
+					(size 1.27 1.27)
+				)
+				(hide yes)
+			)
+		)
+		(pin "2"
+			(uuid "a3a77332-18b8-4d06-9ee3-d61602a63b65")
+		)
+		(pin "1"
+			(uuid "3d980af5-277c-4b92-898b-85b5bca7eed2")
+		)
+		(instances
+			(project ""
+				(path "/410b55e1-3407-41ac-ad87-1a6089b8359d"
+					(reference "Lant2")
 					(unit 1)
 				)
 			)
