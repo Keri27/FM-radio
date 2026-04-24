@@ -31,8 +31,9 @@ volatile uint8_t tim0Cycles = 0;
 volatile uint8_t tim1Cycles = 0;
 volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
-volatile uint8_t updateInfo = 0; // battery, RDS
+volatile uint8_t updateInfo = 1; // battery, RDS
 volatile uint8_t seek = 1;       // battery, RDS
+const char* channelName = "none";
 
 uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
 uint8_t rssi = 0;
@@ -43,7 +44,6 @@ uint8_t volume;           // volume: 0, 1, 3, 5, ..., 15
 uint8_t output;           // audio output: speaker (default) or headphones
 uint8_t brightness = 150; // brightness of the OLED <0, 100> %; step: 10 %
 uint8_t battery;          // battery perctentage <0, 100> %; step: 10 %
-const char *programmeName;
 
 /* EEPROM (holds stored values after powerdown) */
 uint8_t ee_volume EEMEM;
@@ -133,10 +133,8 @@ int main(void)
   rssi = SI4703_GetRSSI();
   stereo = SI4703_GetStereo();
   battery = getBatteryPercentage(ADC_Read());
-  _delay_ms(90); // wait to get up-to-date RDS
-  programmeName = SI4703_RDSProgrammeName();
 
-  display_updateRDS(actFreq, rssi, stereo, seekFail, battery, programmeName);
+  display_updateRDS(actFreq, rssi, stereo, seekFail, battery, channelName);
 
   /* Timer1 triggers update sequence (battery, RDS)*/
   TCNT1 = 0;
@@ -209,6 +207,7 @@ int main(void)
 
             /* Update info (RDS) in 8 s and restart 24 s cycle*/
             timer1_restartSchedule();
+            SI4703_ResetPS();
           }
           else
           {
@@ -223,12 +222,13 @@ int main(void)
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery); // display_updateRDS
         }
         /* Set frequency UP */
         else if (buttons[UP_IDX].stableState == 1)
         {
           timer1_restartSchedule();
+          SI4703_ResetPS();
 
           if (actFreq >= 108.0)
           {
@@ -249,6 +249,7 @@ int main(void)
         else if (buttons[DOWN_IDX].stableState == 1)
         {
           timer1_restartSchedule();
+          SI4703_ResetPS();
 
           if (actFreq <= 87.5)
           {
@@ -275,9 +276,8 @@ int main(void)
           actFreq = SI4703_GetFreq(); // AFC may change freq -> keep freq up-to-date
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
-          programmeName = SI4703_RDSProgrammeName();
 
-          display_updateRDS(actFreq, rssi, stereo, seekFail, battery, programmeName);
+          display_updateRDS(actFreq, rssi, stereo, seekFail, battery, channelName);
         }
       }
       /* Screen 1: Volume settings */
@@ -374,6 +374,9 @@ int main(void)
         }
       }
     }
+
+    /* Get name of the tuned station*/
+    channelName = SI4703_RDSProgrammeService();
   }
 }
 

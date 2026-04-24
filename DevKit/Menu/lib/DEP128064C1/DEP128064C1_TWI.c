@@ -201,8 +201,16 @@ void display_updateRDS(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seek
         u8g2_DrawStrCentered(&u8g2, 55, "nenalezena!");
     }
     else
-    {
-        u8g2_DrawStrCentered(&u8g2, 50, programmeName); // e.g. Radio Krokodyl
+    {   
+        if (strcmp(programmeName, "none") == 0)
+        {
+            u8g2_DrawStrCentered(&u8g2, 50, "...");
+        }
+        else
+        {
+            u8g2_DrawStrCentered(&u8g2, 50, programmeName); // e.g. Radio Krokodyl
+        }
+
     }
 
     // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:");

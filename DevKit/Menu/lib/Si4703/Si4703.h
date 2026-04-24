@@ -198,9 +198,9 @@ bool SI4703_SeekDown(void);
 bool SI4703_SeekClear(void);
 uint8_t SI4703_GetRSSI(void);
 uint8_t SI4703_GetStereo(void);
-// bool SI4703_SeekFail(void);
 bool SI4703_RxRegs(void);
-const char *SI4703_RDSProgrammeName(void);
+void SI4703_ResetPS(void);
+const char* SI4703_RDSProgrammeService(void);
 bool SI4703_UpdateRadioInfo(void);
 bool SI4703_CheckRDSReady(void);
 

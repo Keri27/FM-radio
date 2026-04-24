@@ -19,6 +19,8 @@
 
 _radioInfo radioInfo;
 uint16_t SI4703_Regs[16] = {0,};
+char programmeName[9] = "none";
+uint8_t programmeSegmentMask;
 
 static bool SI4703_Wait(void);
 //static bool SI4703_RxRegs(void); // used in main.c
@@ -366,9 +368,10 @@ static bool SI4703_TxRegs()
 	return true;
 }
 
-const char* SI4703_RDSProgrammeName()
-{	
-	// BLERA: if 3 or more mistakes (BLERA == 10 (2), 11 (3)), unreliable data
+/*
+const char* SI4703_RDSProgrammeName() // if group B you can also check the block C
+{
+	// BLERA: if 3 or more mistakes (BLERA == 10 (2) 3-4 mistakes, 11 (3) 5+ mistakes), unreliable data
 	if ((SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >= 2)
 	{
 		return "Spatny signal";
@@ -378,19 +381,18 @@ const char* SI4703_RDSProgrammeName()
 	// if(!SI4703_RxRegs()) return false; // not needed if RxRegs used right before this function
 	uint16_t PIcode = SI4703_Regs[REG_RDSA];
 
-	/* Debug: show raw programmCode in hex */
+	// Debug: show raw programmCode in hex //
 	//char debugStr[10];
 	//return itoa(PIcode, debugStr, 16);
 
 	switch (PIcode)
 	{
-	/*
-	 * 1st num/1st 4 bits: Country code: CZ - 2
-	 * 2nd num: Type of coverage: 0 - local, 2 - national, 3 - interregional
-	 * 3rd + 4th: Program ref num: 5B - Krokodyl (only in CZ!)
-	 */
 
-	/* Jihomoravsky kraj (Brno) */
+	// 1st num/1st 4 bits: Country code: CZ - 2
+	// 2nd num: Type of coverage: 0 - local, 2 - national, 3 - interregional
+	// 3rd + 4th: Program ref num: 5B - Krokodyl (only in CZ!)
+
+	// Jihomoravsky kraj (Brno)
 	case 0x23a2: return "Krokodyl";
 	case 0x232F: return "Radiozurnal";
 	case 0x2203: return "Impuls";
@@ -398,77 +400,133 @@ const char* SI4703_RDSProgrammeName()
 	case 0x2205: return "Frekvence 1";
 	case 0x20BA: return "City Brno";
 
-	/* Pardubicky kraj (Pardubice) */
+	// Pardubicky kraj (Pardubice)
 
 	default: return "Neznama st.";
 	}
 }
+*/
 
-	static void SI4703_Reset(void)
+/* Name of the tuned programme (2B in 4 groups) */
+const char* SI4703_RDSProgrammeService(void)
+{
+	SI4703_RxRegs();
+
+	if (programmeSegmentMask == 0x0F) // if we already have the whole name, we dont need to get it again (if channel didnt changed)
 	{
-		SI4703_PORTB &= ~(1 << SI4703_RST);
-		_delay_ms(10); /* Min 100us */
-		SI4703_PORTB |= (1 << SI4703_RST);
-		_delay_ms(10); /* Min 100us */
+		return programmeName;
 	}
 
-	bool SI4703_UpdateRadioInfo()
+	uint8_t blerB = SI4703_Regs[REG_READCHAN] & MASK_BLERB;
+	uint8_t blerD = SI4703_Regs[REG_READCHAN] & MASK_BLERD;
+
+	if ((blerB >= 2) || (blerD >= 2)) // if there are 3+ mistakes in block A or D
 	{
-		if (!SI4703_RxRegs())
-			return false;
-
-		radioInfo.PartNumber = (SI4703_Regs[REG_POWERCFG] & MASK_PN) >> 12;
-		radioInfo.ManufactID = (SI4703_Regs[REG_POWERCFG] & MASK_MFGID);
-		radioInfo.Revision = (SI4703_Regs[REG_CHIPID] & MASK_REV) >> 10;
-		radioInfo.Device = (SI4703_Regs[REG_CHIPID] & MASK_DEV) >> 6;
-		radioInfo.Firmware = (SI4703_Regs[REG_CHIPID] & MASK_FIRMWARE);
-		radioInfo.DSmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DSMUTE) >> 15);
-		radioInfo.Dmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DMUTE) >> 14);
-		radioInfo.Mono = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_MONO) >> 13);
-		radioInfo.RDSMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_RDSM) >> 11);
-		radioInfo.SeekMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SKMODE) >> 10);
-		radioInfo.SeekUp = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEKUP) >> 9);
-		radioInfo.Seek = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEK) >> 8);
-		radioInfo.Disable = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DISABLE) >> 6);
-		radioInfo.Enable = (bool)(SI4703_Regs[REG_POWERCFG] & MASK_ENABLE);
-		radioInfo.Tune = (bool)((SI4703_Regs[REG_CHANNEL] & MASK_TUNE) >> 15);
-		radioInfo.Channel = (SI4703_Regs[REG_CHANNEL] & MASK_CHAN);
-		radioInfo.RDSIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDSIEN) >> 15);
-		radioInfo.STCIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_STCIEN) >> 14);
-		radioInfo.RDS = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDS) >> 12);
-		radioInfo.DeEmpahsis = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_DE) >> 11);
-		radioInfo.AGCDisable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_AGCD) >> 10);
-		radioInfo.BlendLevelAdjust = (SI4703_Regs[REG_SYSCONFIG1] & MASK_BLNDADJ) >> 6;
-		radioInfo.GPIO3 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO3) >> 4;
-		radioInfo.GPIO2 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO2) >> 2;
-		radioInfo.GPIO1 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO1);
-		radioInfo.SeekThreshold = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SEEKTH) >> 8;
-		radioInfo.BandSelect = (SI4703_Regs[REG_SYSCONFIG2] & MASK_BAND) >> 6;
-		radioInfo.ChannelSpace = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SPACE) >> 4;
-		radioInfo.Volume = (SI4703_Regs[REG_SYSCONFIG2] & MASK_VOLUME);
-		radioInfo.SoftmuteRate = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTER) >> 14;
-		radioInfo.SoftmuteAttenuation = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTEA) >> 12;
-		radioInfo.ExtendedVolumeRange = (bool)((SI4703_Regs[REG_SYSCONFIG3] & MASK_VOLEXT) >> 8);
-		radioInfo.SNRThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKSNR) >> 4;
-		radioInfo.ImpulseThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKCNT);
-		radioInfo.XOSCEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_XOSCEN) >> 15);
-		radioInfo.AudioHiZEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_AHIZEN) >> 14);
-		radioInfo.RDSReady = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSR) >> 15);
-		radioInfo.SeekTuneComplete = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) >> 14);
-		radioInfo.SeekFailBandLimit = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) >> 13);
-		radioInfo.AFCRail = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_AFCRL) >> 12);
-		radioInfo.RDSSynchronized = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSS) >> 11);
-		radioInfo.RDSBlockAError = (SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >> 9;
-		radioInfo.Stereo = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_ST) >> 8);
-		radioInfo.RSSI = (SI4703_Regs[REG_STATUSRSSI] & MASK_RSSI);
-		radioInfo.RDSBlockBError = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
-		radioInfo.RDSBlockCError = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
-		radioInfo.RDSBlockDError = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
-		radioInfo.ReadChannel = (SI4703_Regs[REG_READCHAN] & MASK_READCHAN);
-		radioInfo.RDSA = SI4703_Regs[REG_RDSA];
-		radioInfo.RDSB = SI4703_Regs[REG_RDSB];
-		radioInfo.RDSC = SI4703_Regs[REG_RDSC];
-		radioInfo.RDSD = SI4703_Regs[REG_RDSD];
-
-		return true;
+		return "Spatny signal"; // Weak signal
 	}
+
+	uint16_t blockB = SI4703_Regs[REG_RDSB];
+	uint8_t groupType = (blockB >> 11) & 0x1F;
+
+	if (groupType == 0)
+	{
+		uint8_t index = blockB & 0x03; // received character index (in context of the final word)
+
+		uint16_t blockD = SI4703_Regs[REG_RDSD];
+		char char1 = (blockD >> 8) & 0xFF;	// upper byte
+		char char2 = blockD & 0x00FF;		// bottom byte
+
+		programmeName[index * 2] = char1; // first letter: 0 * 2 = 0
+		programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
+
+		programmeSegmentMask |= (1 << index); // check-list (carries stored segments (4))
+	}
+
+	if (programmeSegmentMask == 0x0F)
+	{
+		return programmeName;
+	}
+	else // in case we dont have the whole programme name
+	{
+		return "none";
+	}
+}
+
+void SI4703_ResetPS(void)
+{
+	programmeSegmentMask = 0; // erase mask
+	for (int i = 0; i < 8; i++)
+	{
+		programmeName[i] = ' '; // erase previous text
+	}
+	programmeName[8] = '\0';
+}
+
+static void SI4703_Reset(void)
+{
+	SI4703_PORTB &= ~(1 << SI4703_RST);
+	_delay_ms(10); /* Min 100us */
+	SI4703_PORTB |= (1 << SI4703_RST);
+	_delay_ms(10); /* Min 100us */
+}
+
+bool SI4703_UpdateRadioInfo()
+{
+	if (!SI4703_RxRegs())
+		return false;
+
+	radioInfo.PartNumber = (SI4703_Regs[REG_POWERCFG] & MASK_PN) >> 12;
+	radioInfo.ManufactID = (SI4703_Regs[REG_POWERCFG] & MASK_MFGID);
+	radioInfo.Revision = (SI4703_Regs[REG_CHIPID] & MASK_REV) >> 10;
+	radioInfo.Device = (SI4703_Regs[REG_CHIPID] & MASK_DEV) >> 6;
+	radioInfo.Firmware = (SI4703_Regs[REG_CHIPID] & MASK_FIRMWARE);
+	radioInfo.DSmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DSMUTE) >> 15);
+	radioInfo.Dmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DMUTE) >> 14);
+	radioInfo.Mono = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_MONO) >> 13);
+	radioInfo.RDSMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_RDSM) >> 11);
+	radioInfo.SeekMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SKMODE) >> 10);
+	radioInfo.SeekUp = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEKUP) >> 9);
+	radioInfo.Seek = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEK) >> 8);
+	radioInfo.Disable = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DISABLE) >> 6);
+	radioInfo.Enable = (bool)(SI4703_Regs[REG_POWERCFG] & MASK_ENABLE);
+	radioInfo.Tune = (bool)((SI4703_Regs[REG_CHANNEL] & MASK_TUNE) >> 15);
+	radioInfo.Channel = (SI4703_Regs[REG_CHANNEL] & MASK_CHAN);
+	radioInfo.RDSIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDSIEN) >> 15);
+	radioInfo.STCIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_STCIEN) >> 14);
+	radioInfo.RDS = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDS) >> 12);
+	radioInfo.DeEmpahsis = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_DE) >> 11);
+	radioInfo.AGCDisable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_AGCD) >> 10);
+	radioInfo.BlendLevelAdjust = (SI4703_Regs[REG_SYSCONFIG1] & MASK_BLNDADJ) >> 6;
+	radioInfo.GPIO3 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO3) >> 4;
+	radioInfo.GPIO2 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO2) >> 2;
+	radioInfo.GPIO1 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO1);
+	radioInfo.SeekThreshold = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SEEKTH) >> 8;
+	radioInfo.BandSelect = (SI4703_Regs[REG_SYSCONFIG2] & MASK_BAND) >> 6;
+	radioInfo.ChannelSpace = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SPACE) >> 4;
+	radioInfo.Volume = (SI4703_Regs[REG_SYSCONFIG2] & MASK_VOLUME);
+	radioInfo.SoftmuteRate = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTER) >> 14;
+	radioInfo.SoftmuteAttenuation = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTEA) >> 12;
+	radioInfo.ExtendedVolumeRange = (bool)((SI4703_Regs[REG_SYSCONFIG3] & MASK_VOLEXT) >> 8);
+	radioInfo.SNRThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKSNR) >> 4;
+	radioInfo.ImpulseThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKCNT);
+	radioInfo.XOSCEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_XOSCEN) >> 15);
+	radioInfo.AudioHiZEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_AHIZEN) >> 14);
+	radioInfo.RDSReady = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSR) >> 15);
+	radioInfo.SeekTuneComplete = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) >> 14);
+	radioInfo.SeekFailBandLimit = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) >> 13);
+	radioInfo.AFCRail = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_AFCRL) >> 12);
+	radioInfo.RDSSynchronized = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSS) >> 11);
+	radioInfo.RDSBlockAError = (SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >> 9;
+	radioInfo.Stereo = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_ST) >> 8);
+	radioInfo.RSSI = (SI4703_Regs[REG_STATUSRSSI] & MASK_RSSI);
+	radioInfo.RDSBlockBError = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	radioInfo.RDSBlockCError = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
+	radioInfo.RDSBlockDError = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+	radioInfo.ReadChannel = (SI4703_Regs[REG_READCHAN] & MASK_READCHAN);
+	radioInfo.RDSA = SI4703_Regs[REG_RDSA];
+	radioInfo.RDSB = SI4703_Regs[REG_RDSB];
+	radioInfo.RDSC = SI4703_Regs[REG_RDSC];
+	radioInfo.RDSD = SI4703_Regs[REG_RDSD];
+
+	return true;
+}
