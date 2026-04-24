@@ -23,7 +23,7 @@
 #define MENU_IDX 3
 
 #define TIM0_WAIT_OVF_NUM 15
-#define TIM0_FREQ_OVF_NUM 12
+#define TIM0_FREQ_OVF_NUM 8
 #define TIM1_OVF_NUM 3
 
 volatile uint8_t change = 0;
@@ -51,11 +51,11 @@ uint8_t ee_output EEMEM;
 
 float actFreq;
 
-static inline void timer1_restartSchedule(uint8_t RdsAfter8s)
+static inline void timer1_restartSchedule(void)
 {
   TCNT1 = 0;
   tim1Cycles = 0;
-  updateInfo = RdsAfter8s;
+  updateInfo = 1; // ISR: updateInfo in 8 s
 }
 
 int main(void)
@@ -208,7 +208,7 @@ int main(void)
             seekFail = 0;
 
             /* Update info (RDS) in 8 s and restart 24 s cycle*/
-            timer1_restartSchedule(1);
+            timer1_restartSchedule();
           }
           else
           {
@@ -228,10 +228,17 @@ int main(void)
         /* Set frequency UP */
         else if (buttons[UP_IDX].stableState == 1)
         {
-          /* Cancel 8 s one-shot update and restart 24 s cycle*/
-          timer1_restartSchedule(0);
+          timer1_restartSchedule();
 
-          actFreq += 0.1; // get freq?
+          if (actFreq >= 108.0)
+          {
+            actFreq = 87.5;
+          }
+          else
+          {
+            actFreq += 0.1;
+          }
+
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
@@ -241,9 +248,17 @@ int main(void)
         /* Set frequency DOWN */
         else if (buttons[DOWN_IDX].stableState == 1)
         {
-          timer1_restartSchedule(0);
+          timer1_restartSchedule();
 
-          actFreq -= 0.1;
+          if (actFreq <= 87.5)
+          {
+            actFreq = 108.0;
+          }
+          else
+          {
+            actFreq -= 0.1;
+          }
+
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
@@ -256,7 +271,8 @@ int main(void)
           // Update info: Battery, RDS... every half a minute or 8 s if seek found staion
           battery = getBatteryPercentage(ADC_Read());
 
-          SI4703_RxRegs();
+          // SI4703_RxRegs(); // included in GetFreq
+          actFreq = SI4703_GetFreq(); // AFC may change freq -> keep freq up-to-date
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
           programmeName = SI4703_RDSProgrammeName();

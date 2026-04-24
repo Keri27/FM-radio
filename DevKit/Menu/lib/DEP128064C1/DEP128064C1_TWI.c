@@ -24,6 +24,9 @@ const unsigned char battery_icon[] =
     0xfc  // . . █ █ █ █ █ █
 };
 
+/* Draw centered string */
+static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *text);
+
 /* Hardware I2C (TWI) callback function for u8g2 library */
 uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
 {
@@ -126,6 +129,19 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
     return 1;
 }
 
+static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *text)
+{
+    u8g2_uint_t textWidth = u8g2_GetStrWidth(u8g2, text);
+
+    u8g2_uint_t x = 0;
+    if (textWidth < 128)
+    {
+        x = (128 - textWidth) / 2;
+    }
+
+    u8g2_DrawStr(u8g2, x, y, text);
+}
+
 void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery)
 {
     char str1[8]; // Buffer (e.g. "106.50")
@@ -139,19 +155,18 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
     u8g2_ClearBuffer(&u8g2);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center freq
-    u8g2_DrawStr(&u8g2, 40, 28, str1); // frequency
+    u8g2_DrawStrCentered(&u8g2, 28, str1); // frequency
 
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     if (seekFail)
     {
-        u8g2_DrawStr(&u8g2, 32, 45, "Stanice");
-        u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+        u8g2_DrawStrCentered(&u8g2, 45, "Stanice");
+        u8g2_DrawStrCentered(&u8g2, 55, "nenalezena!");
     }
 
     // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
     // strcat("RSSI:", str2);
-    u8g2_DrawStr(&u8g2, 55, 8, str2); // RSSI
+    u8g2_DrawStrCentered(&u8g2, 8, str2);
     if (!stereo)
         u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
     else
@@ -177,24 +192,22 @@ void display_updateRDS(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seek
     u8g2_ClearBuffer(&u8g2);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center freq
-    u8g2_DrawStr(&u8g2, 40, 28, str1); // frequency
+    u8g2_DrawStrCentered(&u8g2, 28, str1); // frequency
 
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     if (seekFail)
     {
-        u8g2_DrawStr(&u8g2, 32, 45, "Stanice");
-        u8g2_DrawStr(&u8g2, 25, 55, "nenalezena!");
+        u8g2_DrawStrCentered(&u8g2, 45, "Stanice");
+        u8g2_DrawStrCentered(&u8g2, 55, "nenalezena!");
     }
     else
     {
-        // u8g2_GetStrWidth(u8g2_t *u8g2, const char *s); // center text
-        u8g2_DrawStr(&u8g2, 25, 50, programmeName); // e.g. Radio Krokodyl
+        u8g2_DrawStrCentered(&u8g2, 50, programmeName); // e.g. Radio Krokodyl
     }
 
-    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
+    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:");
     // strcat("RSSI:", str2);
-    u8g2_DrawStr(&u8g2, 55, 8, str2); // RSSI
+    u8g2_DrawStrCentered(&u8g2, 8, str2); // RSSI
     if (!stereo)
         u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
     else
