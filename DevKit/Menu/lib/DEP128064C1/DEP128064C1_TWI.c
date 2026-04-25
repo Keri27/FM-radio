@@ -142,7 +142,7 @@ static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *tex
     u8g2_DrawStr(u8g2, x, y, text);
 }
 
-void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery)
+void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery, const char* programmeName)
 {
     char str1[8]; // Buffer (e.g. "106.50")
     char str2[4];
@@ -154,76 +154,49 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
 
     u8g2_ClearBuffer(&u8g2);
 
+    /* Frequency */
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStrCentered(&u8g2, 28, str1); // frequency
+    u8g2_DrawStrCentered(&u8g2, 33, str1);
 
+    /* RSSI */
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
-    if (seekFail)
-    {
-        u8g2_DrawStrCentered(&u8g2, 45, "Stanice");
-        u8g2_DrawStrCentered(&u8g2, 55, "nenalezena!");
-    }
-
-    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:"); // RSSI
     // strcat("RSSI:", str2);
     u8g2_DrawStrCentered(&u8g2, 8, str2);
+
+    /* Stereo/Mono indicator */
     if (!stereo)
-        u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
+        u8g2_DrawStr(&u8g2, 20, 8, "M");
     else
         u8g2_DrawStr(&u8g2, 20, 8, "S");
 
+    /* Battery percentage */
     u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
     strcat(str3, "%");
-    u8g2_DrawStr(&u8g2, 110, 8, str3); // battery percentage
+    u8g2_DrawStr(&u8g2, 110, 8, str3);
 
-    u8g2_SendBuffer(&u8g2);
-}
-
-void display_updateRDS(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery, const char *programmeName)
-{
-    char str1[8]; // Buffer (e.g. "106.50")
-    char str2[4];
-    char str3[8];
-
-    dtostrf(actFreq, 4, 1, str1);
-    itoa(rssi, str2, /* dec */ 10); // integer to ascii
-    itoa(battery, str3, 10);
-
-    u8g2_ClearBuffer(&u8g2);
-
-    u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStrCentered(&u8g2, 28, str1); // frequency
-
-    u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
+    /* Station name */
     if (seekFail)
     {
-        u8g2_DrawStrCentered(&u8g2, 45, "Stanice");
-        u8g2_DrawStrCentered(&u8g2, 55, "nenalezena!");
+        u8g2_DrawStrCentered(&u8g2, 50, "Stanice");
+        u8g2_DrawStrCentered(&u8g2, 60, "nenalezena!");
     }
     else
-    {   
-        if (strcmp(programmeName, "none") == 0)
+    {
+        if (strcmp(programmeName, "loading") == 0) // if programmeName == "loading" -> loading
         {
-            u8g2_DrawStrCentered(&u8g2, 50, "...");
+            u8g2_SetFont(&u8g2, u8g2_font_courB10_tf);
+            u8g2_DrawStrCentered(&u8g2, 55, "...");
+        }
+        else if (strcmp(programmeName, "none") == 0) // if radio is unable to decode the RDS
+        {
+            u8g2_DrawStrCentered(&u8g2, 55, "Spatny signal");
         }
         else
         {
-            u8g2_DrawStrCentered(&u8g2, 50, programmeName); // e.g. Radio Krokodyl
+            u8g2_SetFont(&u8g2, u8g2_font_courB10_tf);
+            u8g2_DrawStrCentered(&u8g2, 55, programmeName); // e.g. Radio Krokodyl
         }
-
     }
-
-    // u8g2_DrawStr(&u8g2, 50, 10, "RSSI:");
-    // strcat("RSSI:", str2);
-    u8g2_DrawStrCentered(&u8g2, 8, str2); // RSSI
-    if (!stereo)
-        u8g2_DrawStr(&u8g2, 20, 8, "M"); // stereo/mono indicator
-    else
-        u8g2_DrawStr(&u8g2, 20, 8, "S");
-
-    u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
-    strcat(str3, "%");
-    u8g2_DrawStr(&u8g2, 110, 8, str3); // battery percentage
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -244,9 +217,9 @@ void display_changeVolume(uint8_t volume)
     u8g2_DrawStr(&u8g2, 10, 15, "Hlasitost");
     u8g2_DrawStr(&u8g2, 20, 50, str);
 
-    u8g2_DrawFrame(&u8g2, 13, 25, 84, 6);
+    u8g2_DrawFrame(&u8g2, 10, 25, 84, 6);
     if (volume)
-        u8g2_DrawBox(&u8g2, 15, 27, (volume) * 10, 2);
+        u8g2_DrawBox(&u8g2, 12, 27, (volume) * 10, 2);
 
     u8g2_SendBuffer(&u8g2);
 }
@@ -256,7 +229,7 @@ void display_changeAudioOutput(uint8_t output)
     u8g2_ClearBuffer(&u8g2);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStr(&u8g2, 10, 15, "Audio vystup");
+    u8g2_DrawStrCentered(&u8g2, 15, "Audio vystup");
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
     u8g2_DrawStr(&u8g2, 40, 35, "Reproduktor");
     u8g2_DrawStr(&u8g2, 40, 55, "Sluchatka");
@@ -286,9 +259,9 @@ void display_changeBrightness(uint8_t brightness)
 
     u8g2_ClearBuffer(&u8g2);
 
-    u8g2_DrawCircle(&u8g2, 45, 32, 30, U8G2_DRAW_ALL);
+    u8g2_DrawCircle(&u8g2, 40, 32, 30, U8G2_DRAW_ALL);
     uint8_t rad = (brightness / 10) * 3;
-    u8g2_DrawFilledEllipse(&u8g2, 45, 32, rad, rad, U8G2_DRAW_ALL);
+    u8g2_DrawFilledEllipse(&u8g2, 40, 32, rad, rad, U8G2_DRAW_ALL);
 
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
     u8g2_DrawStr(&u8g2, 85, 31, "Jas");

@@ -19,8 +19,9 @@
 
 _radioInfo radioInfo;
 uint16_t SI4703_Regs[16] = {0,};
-char programmeName[9] = "none";
-uint8_t programmeSegmentMask;
+char programmeName[9] = "none"; // 8 char + ending char "\0"
+char programmeBuffer[9] = "";
+uint8_t psMask; // programme service segment mask
 
 static bool SI4703_Wait(void);
 //static bool SI4703_RxRegs(void); // used in main.c
@@ -82,6 +83,8 @@ bool SI4703_Init()
 	
 	/* Set De-Emphasis 50us (Europe) */
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
+
+
 
 	/* Set GPIO 2 STC/RDS interrupt */
 	//SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
@@ -272,8 +275,10 @@ uint8_t SI4703_GetRSSI()
 uint8_t SI4703_GetStereo() // stereo status indicator
 {
 	// if (!SI4703_RxRegs()) return false; // Uncomment if NOT used earlier (SeekUp)
-	uint8_t stereo = SI4703_Regs[REG_STATUSRSSI] & (1 << IDX_ST);
+	uint8_t stereo = (SI4703_Regs[REG_STATUSRSSI] & (1 << IDX_ST)) != 0;
 	return stereo;
+
+	// var.B: uint8_t stereo = (SI4703_Regs[REG_STATUSRSSI] >> IDX_ST) & 0x01;
 }
 
 bool SI4703_CheckRDSReady()
@@ -368,6 +373,7 @@ static bool SI4703_TxRegs()
 	return true;
 }
 
+/* RDS: PI - station identification*/
 /*
 const char* SI4703_RDSProgrammeName() // if group B you can also check the block C
 {
@@ -412,17 +418,17 @@ const char* SI4703_RDSProgrammeService(void)
 {
 	SI4703_RxRegs();
 
-	if (programmeSegmentMask == 0x0F) // if we already have the whole name, we dont need to get it again (if channel didnt changed)
+	if (psMask == 0x0F)
 	{
 		return programmeName;
 	}
 
-	uint8_t blerB = SI4703_Regs[REG_READCHAN] & MASK_BLERB;
-	uint8_t blerD = SI4703_Regs[REG_READCHAN] & MASK_BLERD;
+	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
 	if ((blerB >= 2) || (blerD >= 2)) // if there are 3+ mistakes in block A or D
 	{
-		return "Spatny signal"; // Weak signal
+		return "none"; // weak signal
 	}
 
 	uint16_t blockB = SI4703_Regs[REG_RDSB];
@@ -436,13 +442,25 @@ const char* SI4703_RDSProgrammeService(void)
 		char char1 = (blockD >> 8) & 0xFF;	// upper byte
 		char char2 = blockD & 0x00FF;		// bottom byte
 
-		programmeName[index * 2] = char1; // first letter: 0 * 2 = 0
-		programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
+		/* Doublle validation - we must get the same characters twice in a row */
+		if ((programmeBuffer[index * 2] == char1) && (programmeBuffer[index * 2 + 1] == char2))
+		{
 
-		programmeSegmentMask |= (1 << index); // check-list (carries stored segments (4))
+			programmeName[index * 2] = char1;	  // first letter: 0 * 2 = 0
+			programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
+
+			psMask |= (1 << index); // check-list (carries stored segments (4))
+		}
+		else
+		{
+			programmeBuffer[index * 2] = char1;
+			programmeBuffer[index * 2 + 1] = char2;
+
+			psMask &= ~(1 << index);
+		}
 	}
 
-	if (programmeSegmentMask == 0x0F)
+	if (psMask == 0x0F)
 	{
 		return programmeName;
 	}
@@ -454,12 +472,14 @@ const char* SI4703_RDSProgrammeService(void)
 
 void SI4703_ResetPS(void)
 {
-	programmeSegmentMask = 0; // erase mask
+	psMask = 0; // erase mask
 	for (int i = 0; i < 8; i++)
 	{
 		programmeName[i] = ' '; // erase previous text
+		programmeBuffer[i] = ' ';
 	}
-	programmeName[8] = '\0';
+	programmeName[8] = '\0'; // add ending char
+	programmeBuffer[8] = '\0';
 }
 
 static void SI4703_Reset(void)
