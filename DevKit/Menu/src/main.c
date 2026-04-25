@@ -33,8 +33,10 @@ volatile uint8_t tim1Cycles = 0;
 volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t updateInfo = 1; // battery, RDS
-volatile uint8_t seek = 1;       // battery, RDS
+
 const char* channelName = "loading";
+uint8_t actHour = 99; // serves for identification of first minute
+uint8_t actMinute = 99;
 
 uint8_t screen = 0; // holds index of the current screen - "0" belongs to the FM radio
 uint8_t rssi = 0;
@@ -138,7 +140,7 @@ int main(void)
   stereo = SI4703_GetStereo();
   battery = getBatteryPercentage(ADC_Read());
 
-  display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName);
+  display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
 
   /* Timer1 triggers update sequence (battery, RDS)*/
   TCNT1 = 0;
@@ -226,7 +228,7 @@ int main(void)
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
         }
         /* Set frequency UP */
         else if (buttons[UP_IDX].stableState == 1)
@@ -249,7 +251,7 @@ int main(void)
           channelName = "loading";
 
           SI4703_SetFreq(actFreq);
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
         }
         /* Set frequency DOWN */
         else if (buttons[DOWN_IDX].stableState == 1)
@@ -272,7 +274,7 @@ int main(void)
           channelName = "loading";
 
           SI4703_SetFreq(actFreq);
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
         }
         /* No user action */
         else
@@ -285,7 +287,7 @@ int main(void)
           rssi = SI4703_GetRSSI();
           stereo = SI4703_GetStereo();
 
-          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName);
+          display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
         }
       }
       /* Screen 1: Volume settings */
@@ -385,17 +387,11 @@ int main(void)
 
     /* Get name of the tuned station */
     channelName = SI4703_RDSProgrammeService();
-    /*
-    if (strcmp(newChannelName, "none") != 0) // if newChannelName != none
-    {
-      
 
-      if (strcmp(newChannelName, channelName) != 0 && ) // if the name of channel changed and rssi is greater or equal to prev. rssi
-      {
-        channelName = newChannelName;
-        
-      }
-    }*/
+    if (SI4703_RDSClockTime(&actHour, &actMinute))
+    {
+      change = 1;
+    }
   }
 }
 

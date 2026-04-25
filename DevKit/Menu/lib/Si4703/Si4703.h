@@ -201,6 +201,7 @@ uint8_t SI4703_GetStereo(void);
 bool SI4703_RxRegs(void);
 void SI4703_ResetPS(void);
 const char* SI4703_RDSProgrammeService(void);
+bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute);
 bool SI4703_UpdateRadioInfo(void);
 bool SI4703_CheckRDSReady(void);
 

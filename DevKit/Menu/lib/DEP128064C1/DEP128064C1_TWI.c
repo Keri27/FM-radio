@@ -1,5 +1,6 @@
 #include <stdint.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <util/delay.h>
 
@@ -15,17 +16,43 @@ u8g2_t u8g2;
 
 /* 8x6 battery icon */
 const unsigned char battery_icon[] =
-{
-    0xfc, // . . █ █ █ █ █ █
-    0xff, // █ █ █ █ █ █ █ █
-    0xff, // █ █ █ █ █ █ █ █
-    0xff, // █ █ █ █ █ █ █ █
-    0xff, // █ █ █ █ █ █ █ █
-    0xfc  // . . █ █ █ █ █ █
+    {
+        0xfc, // . . █ █ █ █ █ █
+        0xff, // █ █ █ █ █ █ █ █
+        0xff, // █ █ █ █ █ █ █ █
+        0xff, // █ █ █ █ █ █ █ █
+        0xff, // █ █ █ █ █ █ █ █
+        0xfc  // . . █ █ █ █ █ █
 };
 
 /* Draw centered string */
 static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *text);
+
+/* Trims trailing and leading spaces, returns pointer to the new start */
+static char *trim_spaces(char *str)
+{
+    // Right trim
+    for (int i = strlen(str) - 1; i >= 0; i--)
+    {
+        if (str[i] == ' ')
+        {
+            str[i] = '\0';
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    // Left trim
+    char *start = str;
+    while (*start == ' ')
+    {
+        start++;
+    }
+
+    return start;
+}
 
 /* Hardware I2C (TWI) callback function for u8g2 library */
 uint8_t u8x8_byte_hw_i2c_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void *arg_ptr)
@@ -131,7 +158,13 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
 
 static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *text)
 {
-    u8g2_uint_t textWidth = u8g2_GetStrWidth(u8g2, text);
+    char buf[10];
+    strncpy(buf, text, 9);
+    buf[9] = '\0';
+
+    char *trimmedText = trim_spaces(buf);
+
+    u8g2_uint_t textWidth = u8g2_GetStrWidth(u8g2, trimmedText);
 
     u8g2_uint_t x = 0;
     if (textWidth < 128)
@@ -139,40 +172,54 @@ static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *tex
         x = (128 - textWidth) / 2;
     }
 
-    u8g2_DrawStr(u8g2, x, y, text);
+    u8g2_DrawStr(u8g2, x, y, trimmedText);
 }
 
-void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery, const char* programmeName)
+void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t seekFail, uint8_t battery, const char *programmeName, uint8_t hour, uint8_t minute)
 {
-    char str1[8]; // Buffer (e.g. "106.50")
-    char str2[4];
-    char str3[8];
+    char freq_str[8]; // Buffer (e.g. "106.50")
+    char rssi_str[4];
+    char batt_str[8];
+    char time_str[6]; // "HH:MM"
 
-    dtostrf(actFreq, 4, 1, str1);
-    itoa(rssi, str2, /* dec */ 10); // integer to ascii
-    itoa(battery, str3, 10);
+    dtostrf(actFreq, 4, 1, freq_str);
+    itoa(rssi, rssi_str, /* dec */ 10); // integer to ascii
+    itoa(battery, batt_str, 10);
 
     u8g2_ClearBuffer(&u8g2);
 
     /* Frequency */
     u8g2_SetFont(&u8g2, u8g2_font_courB12_tf);
-    u8g2_DrawStrCentered(&u8g2, 33, str1);
+    u8g2_DrawStrCentered(&u8g2, 33, freq_str);
 
-    /* RSSI */
+    /* Time */
     u8g2_SetFont(&u8g2, u8g2_font_courB08_tf);
-    // strcat("RSSI:", str2);
-    u8g2_DrawStrCentered(&u8g2, 8, str2);
+
+    if (hour < 24)
+    {
+        snprintf(time_str, sizeof(time_str), "%02u:%02u", hour, minute);
+    }
+    else
+    {
+        snprintf(time_str, sizeof(time_str), "--:--"); // Čekáme na data z RDS
+    }
+
+    u8g2_DrawStr(&u8g2, 5, 8, time_str);
 
     /* Stereo/Mono indicator */
     if (!stereo)
-        u8g2_DrawStr(&u8g2, 20, 8, "M");
+        u8g2_DrawStr(&u8g2, 50, 8, "M");
     else
-        u8g2_DrawStr(&u8g2, 20, 8, "S");
+        u8g2_DrawStr(&u8g2, 50, 8, "S");
+
+    /* RSSI */
+    // strcat("RSSI:", rssi_str);
+    u8g2_DrawStr(&u8g2, 70, 8, rssi_str);
 
     /* Battery percentage */
     u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
-    strcat(str3, "%");
-    u8g2_DrawStr(&u8g2, 110, 8, str3);
+    strcat(batt_str, "%");
+    u8g2_DrawStr(&u8g2, 110, 8, batt_str);
 
     /* Station name */
     if (seekFail)

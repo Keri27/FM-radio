@@ -426,7 +426,7 @@ const char* SI4703_RDSProgrammeService(void)
 	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
 	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
-	if ((blerB >= 2) || (blerD >= 2)) // if there are 3+ mistakes in block A or D
+	if ((blerB >= 2) || (blerD >= 2)) // if there are 3+ mistakes
 	{
 		return "none"; // weak signal
 	}
@@ -469,6 +469,88 @@ const char* SI4703_RDSProgrammeService(void)
 	{
 		return "none";
 	}
+}
+
+/* 
+ * Fetches the Clock Time (CT) from RDS Group 4A.
+ * Returns true if time was successfully updated.
+ */
+bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
+{
+	// Check Block Error Rates (BLER) for blocks B, C, and D
+	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
+	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+
+	// Time data must be absolutely error-free to prevent parsing corrupted time
+	// Tolerating bler == 1 (1-2 bits perfectly corrected by hardware FEC)
+	if ((blerB >= 1) || (blerC >= 1) || (blerD >= 1))
+	{
+		return false;
+	}
+
+	uint16_t blockB = SI4703_Regs[REG_RDSB];
+	uint8_t groupType = (blockB >> 11) & 0x1F;
+
+	// Process only Group 4A (Clock Time and Date) - binary 01000 (8)
+	if (groupType == 8)
+	{
+		uint16_t blockC = SI4703_Regs[REG_RDSC];
+		uint16_t blockD = SI4703_Regs[REG_RDSD];
+
+		// 1. Extract raw UTC time from Block C and D
+		uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
+		uint8_t utc_minute = (blockD >> 6) & 0x3F;
+		uint8_t offset_bits = blockD & 0x3F;
+
+		// 2. Decode Local Time Offset (expressed in multiples of half-hours)
+		// Bit 5 (0x20) indicates if the offset is negative
+		int8_t offset = offset_bits & 0x1F;
+		if (offset_bits & 0x20)
+		{
+			offset = -offset;
+		}
+
+		// 3. Convert UTC to Local Time based on the offset
+		int8_t local_hour = utc_hour + (offset / 2);
+		int8_t local_minute = utc_minute + ((offset % 2) * 30);
+
+		// 4. Handle minute overflow/underflow
+		if (local_minute >= 60)
+		{
+			local_minute -= 60;
+			local_hour++;
+		}
+		else if (local_minute < 0)
+		{
+			local_minute += 60;
+			local_hour--;
+		}
+
+		// 5. Handle hour overflow/underflow (midnight boundary)
+		if (local_hour >= 24)
+		{
+			local_hour -= 24;
+		}
+		else if (local_hour < 0)
+		{
+			local_hour += 24;
+		}
+
+		// 6. Check if time is already up-to-date
+		if ((*hour == local_hour) && (*minute == local_minute))
+		{
+			return false;
+		}
+
+		// 7. Save the calculated local time
+		*hour = local_hour;
+		*minute = local_minute;
+
+		return true;
+	}
+
+	return false;
 }
 
 void SI4703_ResetPS(void)
