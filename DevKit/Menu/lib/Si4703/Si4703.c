@@ -442,7 +442,7 @@ const char* SI4703_RDSProgrammeService(void)
 		char char1 = (blockD >> 8) & 0xFF;	// upper byte
 		char char2 = blockD & 0x00FF;		// bottom byte
 
-		/* Doublle validation - we must get the same characters twice in a row */
+		/* Double validation - we must get the same characters twice in a row */
 		if ((programmeBuffer[index * 2] == char1) && (programmeBuffer[index * 2 + 1] == char2))
 		{
 
@@ -457,6 +457,7 @@ const char* SI4703_RDSProgrammeService(void)
 			programmeBuffer[index * 2 + 1] = char2;
 
 			psMask &= ~(1 << index);
+			// psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
 		}
 	}
 

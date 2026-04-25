@@ -25,7 +25,7 @@
 
 #define TIM0_WAIT_OVF_NUM 15
 #define TIM0_FREQ_OVF_NUM 8
-#define TIM1_OVF_NUM 3
+#define TIM1_OVF_NUM 4 // period: 4 * 8,3 = 33,2 S
 
 volatile uint8_t change = 0;
 volatile uint8_t tim0Cycles = 0;
@@ -55,8 +55,10 @@ float actFreq;
 static inline void timer1_restartSchedule(void)
 {
   TCNT1 = 0;
+  tim1_ovf_2s();
+
   tim1Cycles = 0;
-  updateInfo = 1; // ISR: updateInfo in 8 s
+  updateInfo = 1; // ISR: updateInfo in 2 s
 }
 
 int main(void)
@@ -85,8 +87,8 @@ int main(void)
   /* Enable global interrupts */
   sei();
 
-  /* OLED I2C constructor */
-  u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_hw_i2c_avr, u8x8_gpio_and_delay_avr); // U8G2_R2
+  /* OLED init */
+  u8g2_Setup_ssd1306_i2c_128x64_noname_f(&u8g2, U8G2_R0, u8x8_byte_hw_i2c_avr, u8x8_gpio_and_delay_avr); // I2C constructor
 
   u8g2_InitDisplay(&u8g2);
   u8g2_SetPowerSave(&u8g2, 0);         // switch off power save mode
@@ -140,7 +142,7 @@ int main(void)
 
   /* Timer1 triggers update sequence (battery, RDS)*/
   TCNT1 = 0;
-  tim1_ovf_8s();
+  tim1_ovf_2s();
   tim1_ovf_enable();
 
   while (1)
@@ -437,10 +439,13 @@ ISR(TIMER1_OVF_vect)
     tim1Cycles = 0;
     change = 1;
   }
-  if (updateInfo)
+  /* Requested update */
+  if (updateInfo & (tim1Cycles >= 1)) // 2,1 s
   {
     updateInfo = 0;
     change = 1;
+
+    tim1_ovf_8s(); // change timer ovf
   }
 }
 
