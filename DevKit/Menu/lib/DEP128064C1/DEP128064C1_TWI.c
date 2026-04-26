@@ -158,9 +158,9 @@ uint8_t u8x8_gpio_and_delay_avr(u8x8_t *u8x8, uint8_t msg, uint8_t arg_int, void
 
 static inline void u8g2_DrawStrCentered(u8g2_t *u8g2, uint8_t y, const char *text)
 {
-    char buf[10];
-    strncpy(buf, text, 9);
-    buf[9] = '\0';
+    char buf[16];
+    strncpy(buf, text, 15);
+    buf[15] = '\0';
 
     char *trimmedText = trim_spaces(buf);
 
@@ -219,7 +219,7 @@ void display_updateChannel(float actFreq, uint8_t rssi, uint8_t stereo, uint8_t 
     /* Battery percentage */
     u8g2_DrawXBM(&u8g2, 95, 2, 8, 6, battery_icon);
     strcat(batt_str, "%");
-    u8g2_DrawStr(&u8g2, 110, 8, batt_str);
+    u8g2_DrawStr(&u8g2, 105, 8, batt_str);
 
     /* Station name */
     if (seekFail)

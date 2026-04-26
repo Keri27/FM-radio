@@ -475,16 +475,22 @@ const char* SI4703_RDSProgrammeService(void)
  * Fetches the Clock Time (CT) from RDS Group 4A.
  * Returns true if time was successfully updated.
  */
+/* * Fetches the Clock Time (CT) from RDS Group 4A.
+ * Returns true if time was successfully updated after double validation.
+ */
 bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 {
+	// Static variables for the "waiting room" (persistent between function calls)
+	static uint8_t wait_hour = 99;
+	static uint8_t wait_minute = 99;
+
 	// Check Block Error Rates (BLER) for blocks B, C, and D
 	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
 	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
 	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
-	// Time data must be absolutely error-free to prevent parsing corrupted time
-	// Tolerating bler == 1 (1-2 bits perfectly corrected by hardware FEC)
-	if ((blerB >= 1) || (blerC >= 1) || (blerD >= 1))
+	// Strict zero-tolerance for errors in clock data
+	if ((blerB > 0) || (blerC > 0) || (blerD > 0))
 	{
 		return false;
 	}
@@ -492,62 +498,67 @@ bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 	uint16_t blockB = SI4703_Regs[REG_RDSB];
 	uint8_t groupType = (blockB >> 11) & 0x1F;
 
-	// Process only Group 4A (Clock Time and Date) - binary 01000 (8)
+	// Process only Group 4A (Clock Time) - binary 01000 (8)
 	if (groupType == 8)
 	{
 		uint16_t blockC = SI4703_Regs[REG_RDSC];
 		uint16_t blockD = SI4703_Regs[REG_RDSD];
 
-		// 1. Extract raw UTC time from Block C and D
+		// 1. Extract raw UTC time across Block C and D
 		uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
 		uint8_t utc_minute = (blockD >> 6) & 0x3F;
-		uint8_t offset_bits = blockD & 0x3F;
 
-		// 2. Decode Local Time Offset (expressed in multiples of half-hours)
-		// Bit 5 (0x20) indicates if the offset is negative
-		int8_t offset = offset_bits & 0x1F;
-		if (offset_bits & 0x20)
-		{
-			offset = -offset;
-		}
-
-		// 3. Convert UTC to Local Time based on the offset
-		int8_t local_hour = utc_hour + (offset / 2);
-		int8_t local_minute = utc_minute + ((offset % 2) * 30);
-
-		// 4. Handle minute overflow/underflow
-		if (local_minute >= 60)
-		{
-			local_minute -= 60;
-			local_hour++;
-		}
-		else if (local_minute < 0)
-		{
-			local_minute += 60;
-			local_hour--;
-		}
-
-		// 5. Handle hour overflow/underflow (midnight boundary)
-		if (local_hour >= 24)
-		{
-			local_hour -= 24;
-		}
-		else if (local_hour < 0)
-		{
-			local_hour += 24;
-		}
-
-		// 6. Check if time is already up-to-date
-		if ((*hour == local_hour) && (*minute == local_minute))
+		// Sanity check: discard obviously corrupted data
+		if (utc_hour > 23 || utc_minute > 59)
 		{
 			return false;
 		}
 
-		// 7. Save the calculated local time
-		*hour = local_hour;
-		*minute = local_minute;
+		// 2. Decode Local Time Offset from Block D (6 bits total)
+		uint8_t offset_bits = blockD & 0x3F;
+		int8_t offset = offset_bits & 0x1F;
+		if (offset_bits & 0x20) // Bit 5 is the negative sign
+		{
+			offset = -offset;
+		}
 
-		return true;
+		// 3. Robust math using total minutes (handles midnight and timezone wraps)
+		// Offset is in half-hour increments
+		int16_t total_minutes = (int16_t)(utc_hour * 60) + utc_minute + (offset * 30);
+
+		// Handle wrap-around for negative results (yesterday) or overflows (tomorrow)
+		while (total_minutes < 0)
+			total_minutes += 1440;
+		total_minutes %= 1440;
+
+		uint8_t local_hour = total_minutes / 60;
+		uint8_t local_minute = total_minutes % 60;
+
+		// 4. DOUBLE VALIDATION: Compare current data with the "waiting room"
+		if (local_hour == wait_hour && local_minute == wait_minute)
+		{
+			// MATCH! Clear the waiting room for the next minute
+			wait_hour = 99;
+			wait_minute = 99;
+
+			// Do not trigger a display update if the time hasn't actually changed
+			if ((*hour == local_hour) && (*minute == local_minute))
+			{
+				return false;
+			}
+
+			// Successfully acquired stable time
+			*hour = local_hour;
+			*minute = local_minute;
+			return true;
+		}
+		else
+		{
+			// Store current result in the waiting room and wait for the next burst
+			wait_hour = local_hour;
+			wait_minute = local_minute;
+			return false;
+		}
 	}
 
 	return false;
