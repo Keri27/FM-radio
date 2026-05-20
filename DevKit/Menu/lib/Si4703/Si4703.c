@@ -457,7 +457,7 @@ const char* SI4703_RDSProgrammeService(void)
 			programmeBuffer[index * 2 + 1] = char2;
 
 			psMask &= ~(1 << index);
-			// psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
+			//psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
 		}
 	}
 
@@ -471,11 +471,9 @@ const char* SI4703_RDSProgrammeService(void)
 	}
 }
 
+
 /* 
  * Fetches the Clock Time (CT) from RDS Group 4A.
- * Returns true if time was successfully updated.
- */
-/* * Fetches the Clock Time (CT) from RDS Group 4A.
  * Returns true if time was successfully updated after double validation.
  */
 bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)

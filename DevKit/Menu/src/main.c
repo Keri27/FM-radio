@@ -388,7 +388,7 @@ int main(void)
     /* Get name of the tuned station */
     channelName = SI4703_RDSProgrammeService();
 
-    if (SI4703_RDSClockTime(&actHour, &actMinute))
+    if (SI4703_RDSClockTime(&actHour, &actMinute)) // addresses
     {
       change = 1;
     }
