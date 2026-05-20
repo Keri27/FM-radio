@@ -17,6 +17,8 @@
 #include "SI4703.h"
 #include "128A_TWI.h"
 
+#define PS_NAME_COUNT 3 // number of counts to validate PS (channel) name 
+
 _radioInfo radioInfo;
 uint16_t SI4703_Regs[16] = {0,};
 char programmeName[9] = "none"; // 8 char + ending char "\0"
@@ -373,7 +375,7 @@ static bool SI4703_TxRegs()
 	return true;
 }
 
-/* RDS: PI - station identification*/
+/* RDS: PI - station identification */
 /*
 const char* SI4703_RDSProgrammeName() // if group B you can also check the block C
 {
@@ -413,52 +415,58 @@ const char* SI4703_RDSProgrammeName() // if group B you can also check the block
 }
 */
 
-/* Name of the tuned programme (2B in 4 groups) */
-const char* SI4703_RDSProgrammeService(void)
+uint8_t SI4703_RDSGetGroupType(void)
 {
 	SI4703_RxRegs();
 
+	// Check Block Error Rate (BLER) B
+	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	if (blerB > 0)
+		return false;
+
+	uint16_t blockB = SI4703_Regs[REG_RDSB];
+	uint8_t groupType = (blockB >> 11) & 0x1F;
+
+	return groupType;
+}
+
+/* Name of the tuned programme (2B in 4 groups) */
+const char *SI4703_RDSProgrammeService(void)
+{
 	if (psMask == 0x0F)
 	{
 		return programmeName;
 	}
 
-	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
 	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
-	if ((blerB >= 2) || (blerD >= 2)) // if there are 3+ mistakes
+	if (blerD >= 2) // if there are 3+ fixed errors (accept 1 or 2 fixed errors)
 	{
 		return "none"; // weak signal
 	}
 
 	uint16_t blockB = SI4703_Regs[REG_RDSB];
-	uint8_t groupType = (blockB >> 11) & 0x1F;
+	uint8_t index = blockB & 0x03; // received character index
 
-	if (groupType == 0)
+	uint16_t blockD = SI4703_Regs[REG_RDSD];
+	char char1 = (blockD >> 8) & 0xFF;	// upper byte
+	char char2 = blockD & 0x00FF;		// bottom byte
+
+	/* Double validation - we must get the same characters twice in a row */
+	if ((programmeBuffer[index * 2] == char1) && (programmeBuffer[index * 2 + 1] == char2))
 	{
-		uint8_t index = blockB & 0x03; // received character index (in context of the final word)
+		programmeName[index * 2] = char1;	  // first letter: 0 * 2 = 0
+		programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
 
-		uint16_t blockD = SI4703_Regs[REG_RDSD];
-		char char1 = (blockD >> 8) & 0xFF;	// upper byte
-		char char2 = blockD & 0x00FF;		// bottom byte
+		psMask |= (1 << index); // check-list (carries stored segments (4))
+	}
+	else
+	{
+		programmeBuffer[index * 2] = char1;
+		programmeBuffer[index * 2 + 1] = char2;
 
-		/* Double validation - we must get the same characters twice in a row */
-		if ((programmeBuffer[index * 2] == char1) && (programmeBuffer[index * 2 + 1] == char2))
-		{
-
-			programmeName[index * 2] = char1;	  // first letter: 0 * 2 = 0
-			programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
-
-			psMask |= (1 << index); // check-list (carries stored segments (4))
-		}
-		else
-		{
-			programmeBuffer[index * 2] = char1;
-			programmeBuffer[index * 2 + 1] = char2;
-
-			psMask &= ~(1 << index);
-			//psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
-		}
+		psMask &= ~(1 << index);
+		//psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
 	}
 
 	if (psMask == 0x0F)
@@ -471,97 +479,7 @@ const char* SI4703_RDSProgrammeService(void)
 	}
 }
 
-
-/* 
- * Fetches the Clock Time (CT) from RDS Group 4A.
- * Returns true if time was successfully updated after double validation.
- */
-bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
-{
-	// Static variables for the "waiting room" (persistent between function calls)
-	static uint8_t wait_hour = 99;
-	static uint8_t wait_minute = 99;
-
-	// Check Block Error Rates (BLER) for blocks B, C, and D
-	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
-	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
-	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
-
-	// Strict zero-tolerance for errors in clock data
-	if ((blerB > 0) || (blerC > 0) || (blerD > 0))
-	{
-		return false;
-	}
-
-	uint16_t blockB = SI4703_Regs[REG_RDSB];
-	uint8_t groupType = (blockB >> 11) & 0x1F;
-
-	// Process only Group 4A (Clock Time) - binary 01000 (8)
-	if (groupType == 8)
-	{
-		uint16_t blockC = SI4703_Regs[REG_RDSC];
-		uint16_t blockD = SI4703_Regs[REG_RDSD];
-
-		// 1. Extract raw UTC time across Block C and D
-		uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
-		uint8_t utc_minute = (blockD >> 6) & 0x3F;
-
-		// Sanity check: discard obviously corrupted data
-		if (utc_hour > 23 || utc_minute > 59)
-		{
-			return false;
-		}
-
-		// 2. Decode Local Time Offset from Block D (6 bits total)
-		uint8_t offset_bits = blockD & 0x3F;
-		int8_t offset = offset_bits & 0x1F;
-		if (offset_bits & 0x20) // Bit 5 is the negative sign
-		{
-			offset = -offset;
-		}
-
-		// 3. Robust math using total minutes (handles midnight and timezone wraps)
-		// Offset is in half-hour increments
-		int16_t total_minutes = (int16_t)(utc_hour * 60) + utc_minute + (offset * 30);
-
-		// Handle wrap-around for negative results (yesterday) or overflows (tomorrow)
-		while (total_minutes < 0)
-			total_minutes += 1440;
-		total_minutes %= 1440;
-
-		uint8_t local_hour = total_minutes / 60;
-		uint8_t local_minute = total_minutes % 60;
-
-		// 4. DOUBLE VALIDATION: Compare current data with the "waiting room"
-		if (local_hour == wait_hour && local_minute == wait_minute)
-		{
-			// MATCH! Clear the waiting room for the next minute
-			wait_hour = 99;
-			wait_minute = 99;
-
-			// Do not trigger a display update if the time hasn't actually changed
-			if ((*hour == local_hour) && (*minute == local_minute))
-			{
-				return false;
-			}
-
-			// Successfully acquired stable time
-			*hour = local_hour;
-			*minute = local_minute;
-			return true;
-		}
-		else
-		{
-			// Store current result in the waiting room and wait for the next burst
-			wait_hour = local_hour;
-			wait_minute = local_minute;
-			return false;
-		}
-	}
-
-	return false;
-}
-
+/* Resets variables from SI4703_RDSProgrammeService() function*/
 void SI4703_ResetPS(void)
 {
 	psMask = 0; // erase mask
@@ -572,6 +490,86 @@ void SI4703_ResetPS(void)
 	}
 	programmeName[8] = '\0'; // add ending char
 	programmeBuffer[8] = '\0';
+}
+
+/* 
+ * Fetches the Clock Time from RDS (group 4A)
+ * Returns true if time was successfully updated
+ */
+bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
+{
+	static uint8_t wait_hour = 99; // inital values
+	static uint8_t wait_minute = 99;
+
+	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
+	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+
+	// Zero-tolerance for errors in clock data
+	if ((blerC > 0) || (blerD > 0))
+	{
+		return false;
+	}
+
+	uint16_t blockC = SI4703_Regs[REG_RDSC];
+	uint16_t blockD = SI4703_Regs[REG_RDSD];
+
+	// 1. Extract raw UTC time across Block C and D
+	uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
+	uint8_t utc_minute = (blockD >> 6) & 0x3F;
+
+	// Sanity check: discard obviously corrupted data
+	if (utc_hour > 23 || utc_minute > 59)
+	{
+		return false;
+	}
+
+	// 2. Decode Local Time Offset from Block D (6 bits total)
+	uint8_t offset_bits = blockD & 0x3F;
+	int8_t offset = offset_bits & 0x1F;
+	if (offset_bits & 0x20) // Bit 5 is the negative sign
+	{
+		offset = -offset;
+	}
+
+	// 3. Robust math using total minutes (handles midnight and timezone wraps)
+	// Offset is in half-hour increments
+	int16_t total_minutes = (int16_t)(utc_hour * 60) + utc_minute + (offset * 30);
+
+	// Handle wrap-around for negative results (yesterday) or overflows (tomorrow)
+	while (total_minutes < 0)
+		total_minutes += 1440;
+	total_minutes %= 1440;
+
+	uint8_t local_hour = total_minutes / 60;
+	uint8_t local_minute = total_minutes % 60;
+
+	// 4. DOUBLE VALIDATION: Compare current data with the "waiting room"
+	if (local_hour == wait_hour && local_minute == wait_minute)
+	{
+		// MATCH! Clear the waiting room for the next minute
+		wait_hour = 99;
+		wait_minute = 99;
+
+		// Do not trigger a display update if the time hasn't actually changed
+		if ((*hour == local_hour) && (*minute == local_minute))
+		{
+			return false;
+		}
+
+		// Successfully acquired stable time
+		*hour = local_hour;
+		*minute = local_minute;
+		return true;
+	}
+	else
+	{
+		// Store current result in the waiting room and wait for the next burst
+		wait_hour = local_hour;
+		wait_minute = local_minute;
+		return false;
+	}
+
+	return false;
 }
 
 static void SI4703_Reset(void)

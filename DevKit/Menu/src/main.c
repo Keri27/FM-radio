@@ -34,6 +34,7 @@ volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t updateInfo = 1; // battery, RDS
 
+uint8_t groupType = 99; // RDS group type
 const char* channelName = "loading";
 uint8_t actHour = 99; // serves for identification of first minute
 uint8_t actMinute = 99;
@@ -124,16 +125,13 @@ int main(void)
   SI4703_SetVolume(volume);
 
   /* Seek sequence */
-  if (SI4703_SeekUp())
-  {
-    // seekFail = 0;
-    SI4703_ResetPS();
-  }
-  else
+  if (!SI4703_SeekUp())
   {
     seekFail = 1;
     SI4703_SeekClear(); // If Seek fails due to SFBL or I2C failure, however seek_clear is needed only for I2C failure
   }
+
+  SI4703_ResetPS();
 
   actFreq = SI4703_GetFreq();
   rssi = SI4703_GetRSSI();
@@ -142,7 +140,7 @@ int main(void)
 
   display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
 
-  /* Timer1 triggers update sequence (battery, RDS)*/
+  /* Timer1 triggers update sequence (battery, RDS) */
   TCNT1 = 0;
   tim1_ovf_2s();
   tim1_ovf_enable();
@@ -385,12 +383,19 @@ int main(void)
       }
     }
 
-    /* Get name of the tuned station */
-    channelName = SI4703_RDSProgrammeService();
-
-    if (SI4703_RDSClockTime(&actHour, &actMinute)) // addresses
+    /* Get RDS group type */
+    groupType = SI4703_RDSGetGroupType();
+    
+    if (groupType == 0) 
     {
-      change = 1;
+      /* Get name of the tuned station */
+      channelName = SI4703_RDSProgrammeService();
+    }
+    else if (groupType == 8) // 4A
+    {
+      /* Get CT and update dipslay */
+      if (SI4703_RDSClockTime(&actHour, &actMinute))
+        change = 1;
     }
   }
 }
