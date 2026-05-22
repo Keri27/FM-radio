@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 
-#define UP PD2
-#define DOWN PD3
-#define SEEK PD4
+#define UP PD4
+#define DOWN PD5
+#define SEEK PD3
 
 extern volatile uint8_t debounceTimer;
 extern volatile uint8_t debounceReady;

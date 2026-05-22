@@ -1,7 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
-//#include <stdio.h>
-//#include <stdlib.h>
+#include <util/delay.h>
 #include <stdint.h>
 
 #include "gpio.h"
@@ -9,15 +8,17 @@
 #include "debounce.h"
 #include "Si4703.h"
 
-#define LED PD6
-#define GPIO2 PD7
+#define LED PD7
+#define GPIO2 PD2
+#define SD1 PB2 // Speaker shutdown (TPA741)
+#define SD2 PC1 // Headphones shutdown (TPA6111)
 
 /* For clarity (not meant to be changed)*/
 #define SEEK_IDX 0
 #define UP_IDX 1
 #define DOWN_IDX 2
 
-uint8_t changeColor = 1;
+uint8_t change = 1;
 volatile uint8_t seek = 1;
 volatile uint8_t gpio2 = 0;
 volatile uint8_t seekFail = 0;
@@ -30,7 +31,14 @@ int main(void)
   gpio_mode_input_pullup(&DDRD, DOWN);
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, GPIO2);
+
+  gpio_mode_output(&DDRB, SD1);
+  gpio_mode_output(&DDRC, SD2);
   gpio_mode_output(&DDRD, LED);
+
+  gpio_write_low(&PORTD, LED);
+  gpio_write_low(&PORTB, SD1); // enable speaker
+  gpio_write_high(&PORTC, SD2);
 
   oldD = PIND; // update current state of port D
 
@@ -38,12 +46,13 @@ int main(void)
   PCICR |= (1 << PCIE2);
 
   /* Enable interrupts on PD2 */
-  PCMSK2 |= (1 << PCINT18) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT23);
+  PCMSK2 |= (1 << PCINT18 /* GPIO2 */) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21);
 
   /* Enable global interrupts */
   sei();
 
   SI4703_Init();
+  _delay_ms(100);
   if (SI4703_SeekUp()) seek = 1;
 
   while (1)
@@ -57,28 +66,28 @@ int main(void)
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
-        changeColor = 1;
+        change = 1;
       }
     }
     /* Seek */
-    if ((buttons[SEEK_IDX].stableState == 1) && (changeColor))
+    if ((buttons[SEEK_IDX].stableState == 1) && (change))
     {
       if (SI4703_SeekUp()) seek = 1;
 
       //gpio_toggle(&PORTD, LED);
-      changeColor = 0;
+      change = 0;
     }
     /* UP */
-    else if ((buttons[UP_IDX].stableState == 1) && (changeColor))
+    else if ((buttons[UP_IDX].stableState == 1) && (change))
     {
       gpio_toggle(&PORTD, LED);
-      changeColor = 0;
+      change = 0;
     }
-    /* UP */
-    else if ((buttons[DOWN_IDX].stableState == 1) && (changeColor))
+    /* DOWN */
+    else if ((buttons[DOWN_IDX].stableState == 1) && (change))
     {
       gpio_toggle(&PORTD, LED);
-      changeColor = 0;
+      change = 0;
     }
     /* Seek done */
     else if (gpio2)
@@ -94,7 +103,6 @@ int main(void)
     {
       seekFail = 0;
       seek = 0;
-      gpio_toggle(&PORTD, LED);
       SI4703_SeekClear();
       // Error: Seek failed
     }
@@ -109,16 +117,15 @@ ISR(PCINT2_vect)
   if (seek)
   {
     // GPIO falling edge (active low)  1 \___ 0
-    if ((newD & (1 << GPIO2)) == 0 && (oldD & (1 << GPIO2)) == 1)
+    if ((newD & (1 << GPIO2)) == 0 && (oldD & (1 << GPIO2)) != 0)
     {
       gpio2 = 1;
+      gpio_toggle(&PORTD, LED);
     }
   }
 
   if (debounceReady)
   {
-    newD = PIND;
-
     // SEEK changed (PCINT) - rising or falling edge
     if ((newD ^ oldD) & (1 << SEEK))
     {
@@ -142,7 +149,7 @@ ISR(PCINT2_vect)
     tim2_ovf_enable();
   }
 
-  oldD = newD; // before or after { ?
+  oldD = newD;
 }
 
 /* Interrupt service routine TIMER1 overflow */
