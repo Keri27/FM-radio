@@ -186,6 +186,7 @@ typedef struct
 } _radioInfo;
 
 extern _radioInfo radioInfo;
+extern uint8_t validPS;
 
 bool SI4703_Init(void);
 bool SI4703_SetVolume(uint8_t volume);
@@ -198,7 +199,6 @@ bool SI4703_SeekDown(void);
 bool SI4703_SeekClear(void);
 uint8_t SI4703_GetRSSI(void);
 uint8_t SI4703_GetStereo(void);
-bool SI4703_RxRegs(void);
 uint8_t SI4703_RDSGetGroupType(void);
 const char *SI4703_RDSProgrammeService(void);
 void SI4703_ResetPS(void);

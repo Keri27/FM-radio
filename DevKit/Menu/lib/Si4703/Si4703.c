@@ -13,20 +13,27 @@
 
 #include <util/delay.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "SI4703.h"
 #include "128A_TWI.h"
+#include "timer.h"
 
-#define PS_NAME_COUNT 3 // number of counts to validate PS (channel) name 
+//#define PS_CYCLE_COUNT 32 // number of disagreements to end SI4703_RDSProgrammeService()
 
 _radioInfo radioInfo;
 uint16_t SI4703_Regs[16] = {0,};
+
 char programmeName[9] = "none"; // 8 char + ending char "\0"
 char programmeBuffer[9] = "";
+char prevProgrammeName[9] = "";
+
 uint8_t psMask; // programme service segment mask
+uint8_t validPS = 0;
+uint8_t psCount = 0;
 
 static bool SI4703_Wait(void);
-//static bool SI4703_RxRegs(void); // used in main.c
+static bool SI4703_RxRegs(void);
 static bool SI4703_TxRegs(void);
 static void SI4703_Reset(void);
 
@@ -72,10 +79,11 @@ bool SI4703_Init()
 	/* Set Seek Mode as Stop at band limit (disabled as default) */
 	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
 
+	/* Set SEEKUP bit */
 	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
 
 	/* Enable RDS Interrupt */
-	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
 
 	/* Enable Seek/Tune Complete Interrupt */
 	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
@@ -86,11 +94,9 @@ bool SI4703_Init()
 	/* Set De-Emphasis 50us (Europe) */
 	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
 
-
-
 	/* Set GPIO 2 STC/RDS interrupt */
-	//SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
-	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
+	SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
 
 	/* Set Band as 00 (Europe) */
 	SI4703_Regs[REG_SYSCONFIG2] &= ~((1 << IDX_BAND0) | (1 << IDX_BAND1));
@@ -197,7 +203,7 @@ bool SI4703_SetFreq(float freq)
 	/* Channel = (Frequency - Bottom of band) / Spacing */
 	uint16_t channel = (freq - MIN_FREQ) / 0.1;
 	
-	if(!SI4703_RxRegs()) return false;
+	//if(!SI4703_RxRegs()) return false;
 	
 	/* Update frequency */
 	SI4703_Regs[REG_CHANNEL] &= 0xFE00;
@@ -214,7 +220,7 @@ bool SI4703_SetFreq(float freq)
 
 bool SI4703_SeekUp()
 {
-	if(!SI4703_RxRegs()) return false;
+	if(!SI4703_RxRegs()) return false; // neccessary?
 	
 	/* Set SEEKUP + SEEK bit */
 	//SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP); // if not using SeekDown, its sufficient to set it only once (Init function) 
@@ -228,23 +234,7 @@ bool SI4703_SeekUp()
 	return true;
 }
 
-bool SI4703_SeekDown()
-{
-	if(!SI4703_RxRegs()) return false;
-	
-	/* Clear SEEKUP + SEEK bit */
-	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEKUP);
-	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEK);
-	
-	if(!SI4703_TxRegs()) return false;
-	
-	/* Wait STC bit set & clear */
-	if(!SI4703_Wait()) return false;
-	
-	return true;
-}
-
-bool SI4703_SeekClear()
+bool SI4703_SeekClear() // not used (GPIO2)
 {
 	uint8_t timeout = 0;
 
@@ -333,7 +323,7 @@ static bool SI4703_Wait(void)
 	return !seekFail; // if seekFail return false
 }
 
-bool SI4703_RxRegs()
+static bool SI4703_RxRegs()
 {
 	uint8_t buffer[32];
 	
@@ -417,12 +407,12 @@ const char* SI4703_RDSProgrammeName() // if group B you can also check the block
 
 uint8_t SI4703_RDSGetGroupType(void)
 {
-	SI4703_RxRegs();
+	// SI4703_RxRegs(); // this fucntion is used immediately after SI4703_CheckRDSReady() - using it again would lead to a data loss
 
 	// Check Block Error Rate (BLER) B
 	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
 	if (blerB > 0)
-		return false;
+		return 99; // there is no group 99
 
 	uint16_t blockB = SI4703_Regs[REG_RDSB];
 	uint8_t groupType = (blockB >> 11) & 0x1F;
@@ -433,11 +423,6 @@ uint8_t SI4703_RDSGetGroupType(void)
 /* Name of the tuned programme (2B in 4 groups) */
 const char *SI4703_RDSProgrammeService(void)
 {
-	if (psMask == 0x0F)
-	{
-		return programmeName;
-	}
-
 	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
 	if (blerD >= 2) // if there are 3+ fixed errors (accept 1 or 2 fixed errors)
@@ -445,7 +430,7 @@ const char *SI4703_RDSProgrammeService(void)
 		return "none"; // weak signal
 	}
 
-	uint16_t blockB = SI4703_Regs[REG_RDSB];
+	uint16_t blockB = SI4703_Regs[REG_RDSB]; // blerB already tested in SI4703_RDSGetGroupType()
 	uint8_t index = blockB & 0x03; // received character index
 
 	uint16_t blockD = SI4703_Regs[REG_RDSD];
@@ -465,31 +450,59 @@ const char *SI4703_RDSProgrammeService(void)
 		programmeBuffer[index * 2] = char1;
 		programmeBuffer[index * 2 + 1] = char2;
 
-		psMask &= ~(1 << index);
+		psMask &= ~(1 << index); // reset psMask
 		//psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
 	}
 
-	if (psMask == 0x0F)
+
+	if (psMask == 0x0F) 
 	{
+		validPS = 1;
 		return programmeName;
+
+		/*
+		if (strcmp(programmeName, prevProgrammeName) == 0)
+		{
+			validPS = 1;
+			return programmeName;
+		}
+		else 
+		{
+			if (psCount >= PS_CYCLE_COUNT)
+			{
+				validPS = 1;
+			}
+
+			strcpy(prevProgrammeName, programmeName);
+
+			psCount++;
+			return "none";
+		}
+		*/
 	}
-	else // in case we dont have the whole programme name
+	else  // in case we dont have the whole programme name
 	{
 		return "none";
 	}
+
 }
 
 /* Resets variables from SI4703_RDSProgrammeService() function*/
 void SI4703_ResetPS(void)
 {
 	psMask = 0; // erase mask
+	validPS = 0;
+	psCount = 0;
+	
 	for (int i = 0; i < 8; i++)
 	{
 		programmeName[i] = ' '; // erase previous text
 		programmeBuffer[i] = ' ';
+		prevProgrammeName[i] = ' ';
 	}
 	programmeName[8] = '\0'; // add ending char
 	programmeBuffer[8] = '\0';
+	prevProgrammeName[8] = '\0';
 }
 
 /* 
@@ -498,9 +511,6 @@ void SI4703_ResetPS(void)
  */
 bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 {
-	static uint8_t wait_hour = 99; // inital values
-	static uint8_t wait_minute = 99;
-
 	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
 	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
 
@@ -543,33 +553,9 @@ bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 	uint8_t local_hour = total_minutes / 60;
 	uint8_t local_minute = total_minutes % 60;
 
-	// 4. DOUBLE VALIDATION: Compare current data with the "waiting room"
-	if (local_hour == wait_hour && local_minute == wait_minute)
-	{
-		// MATCH! Clear the waiting room for the next minute
-		wait_hour = 99;
-		wait_minute = 99;
-
-		// Do not trigger a display update if the time hasn't actually changed
-		if ((*hour == local_hour) && (*minute == local_minute))
-		{
-			return false;
-		}
-
-		// Successfully acquired stable time
-		*hour = local_hour;
-		*minute = local_minute;
-		return true;
-	}
-	else
-	{
-		// Store current result in the waiting room and wait for the next burst
-		wait_hour = local_hour;
-		wait_minute = local_minute;
-		return false;
-	}
-
-	return false;
+	*hour = local_hour;
+	*minute = local_minute;
+	return true;
 }
 
 static void SI4703_Reset(void)

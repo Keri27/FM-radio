@@ -1,5 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include <avr/sleep.h>
 #include <stdint.h>
 #include <util/delay.h>
 #include <string.h>
@@ -25,17 +26,20 @@
 
 #define TIM0_WAIT_OVF_NUM 15
 #define TIM0_FREQ_OVF_NUM 8
-#define TIM1_OVF_NUM 4 // period: 4 * 8,3 = 33,2 S
 
 volatile uint8_t change = 0;
 volatile uint8_t tim0Cycles = 0;
 volatile uint8_t tim1Cycles = 0;
 volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
-volatile uint8_t updateInfo = 1; // battery, RDS
+volatile uint8_t CTburst = 0; // RDS clock time burst window opened/closed
+volatile uint8_t groupType = 99; // RDS group type
+//volatile uint8_t seek = 0;
+volatile uint8_t gpio2 = 0;
 
-uint8_t groupType = 99; // RDS group type
 const char* channelName = "loading";
+uint8_t newRDSgroup = 0;
+uint8_t firstCTgroup = 1;
 uint8_t actHour = 99; // serves for identification of first minute
 uint8_t actMinute = 99;
 
@@ -55,22 +59,13 @@ uint8_t ee_output EEMEM;
 
 float actFreq;
 
-static inline void timer1_restartSchedule(void)
-{
-  TCNT1 = 0;
-  tim1_ovf_2s();
-
-  tim1Cycles = 0;
-  updateInfo = 1; // ISR: updateInfo in 2 s
-}
-
 int main(void)
 {
   gpio_mode_input_pullup(&DDRD, UP);
   gpio_mode_input_pullup(&DDRD, DOWN);
   gpio_mode_input_pullup(&DDRD, SEEK);
   gpio_mode_input_pullup(&DDRD, MENU);
-  // gpio_mode_input_pullup(&DDRD, GPIO2);
+  gpio_mode_input_pullup(&DDRD, GPIO2);
   gpio_mode_output(&DDRD, LED);
   gpio_mode_output(&DDRB, SD1);
   gpio_mode_output(&DDRC, SD2);
@@ -85,7 +80,7 @@ int main(void)
   PCICR |= (1 << PCIE2);
 
   /* Enable interrupts on PD2 */
-  PCMSK2 |= (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22); // (1 << PCINT18 /* GPIO2 */) |
+  PCMSK2 |= (1 << PCINT18 /* GPIO2 */) | (1 << PCINT19) | (1 << PCINT20) | (1 << PCINT21) | (1 << PCINT22);
 
   /* Enable global interrupts */
   sei();
@@ -104,8 +99,9 @@ int main(void)
 
   /* Loading values from EEPROM */
   output = eeprom_read_byte(&ee_output); // load value from EEPROM
-  if (output > 1)
-    output = 0; // in case the stored value is out of range (0,1): enable reproductor
+
+  if (output > 1) output = 0; // in case the stored value is out of range (0,1): enable reproductor
+
   if (!output)
   {
     gpio_write_high(&PORTC, SD2);
@@ -120,8 +116,7 @@ int main(void)
   }
 
   volume = eeprom_read_byte(&ee_volume);
-  if (volume > 15)
-    volume = 7;
+  if (volume > 15) volume = 7;
   SI4703_SetVolume(volume);
 
   /* Seek sequence */
@@ -140,14 +135,12 @@ int main(void)
 
   display_updateChannel(actFreq, rssi, stereo, seekFail, battery, channelName, actHour, actMinute);
 
-  /* Timer1 triggers update sequence (battery, RDS) */
-  TCNT1 = 0;
-  tim1_ovf_2s();
-  tim1_ovf_enable();
+  /* Sleep mode used in this program: IDLE*/
+  set_sleep_mode(SLEEP_MODE_IDLE);
 
   while (1)
   {
-    // If timer overflowed or first cycle (PCINT)
+    // Debounce: If timer overflowed or first cycle (PCINT)
     if (debounceTimer == 1)
     {
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
@@ -176,7 +169,7 @@ int main(void)
         }
       }
 
-      // If buttons released and debounce function finished
+      // If any button released and debounce function finished
       if ((buttons[bttn_idx].stableState == 0) && (buttons[bttn_idx].debounceCount == 0))
       {
         debounceReady = 1;
@@ -193,8 +186,20 @@ int main(void)
           change = 0;
         }
       }
-    }
 
+      /*
+      // If debounce function not finished: idle: wait for IRQ from timer 2
+      if (buttons[bttn_idx].debounceCount != 0)
+      {
+        sleep_enable();
+        sleep_cpu();
+
+        sleep_disable(); // after ATmega328P quits IDLE (IRQ, buttons)
+      }
+      */
+      }
+
+    /* User interface */
     if (change == 1)
     {
       change = 0;
@@ -209,8 +214,6 @@ int main(void)
           {
             seekFail = 0;
 
-            /* Update info (RDS) in 8 s and restart 24 s cycle*/
-            timer1_restartSchedule();
             SI4703_ResetPS();
             channelName = "loading";
           }
@@ -218,8 +221,6 @@ int main(void)
           {
             seekFail = 1;
             SI4703_SeekClear();
-
-            updateInfo = 0;
           }
 
           actFreq = SI4703_GetFreq();
@@ -231,7 +232,6 @@ int main(void)
         /* Set frequency UP */
         else if (buttons[UP_IDX].stableState == 1)
         {
-          timer1_restartSchedule();
           SI4703_ResetPS();
 
           if (actFreq >= 108.0)
@@ -254,7 +254,6 @@ int main(void)
         /* Set frequency DOWN */
         else if (buttons[DOWN_IDX].stableState == 1)
         {
-          timer1_restartSchedule();
           SI4703_ResetPS();
 
           if (actFreq <= 87.5)
@@ -335,6 +334,7 @@ int main(void)
         {
           gpio_write_high(&PORTB, SD1);
           gpio_write_low(&PORTC, SD2);
+          SI4703_SetVolume(2); // safe volume
           SI4703_SetMono(0); // switch to stereo (depends on quality of the received signal)
           display_changeAudioOutput(output = 1);
           eeprom_update_byte(&ee_output, output);
@@ -383,19 +383,75 @@ int main(void)
       }
     }
 
-    /* Get RDS group type */
-    groupType = SI4703_RDSGetGroupType();
-    
-    if (groupType == 0) 
+    /* GPIO2 */
+    if (gpio2)
     {
-      /* Get name of the tuned station */
-      channelName = SI4703_RDSProgrammeService();
+      gpio2 = 0;
+
+      if (SI4703_CheckRDSReady())
+      {
+        newRDSgroup = 1;
+      }
+
+      // seek = 0;
+      // SI4703_SeekClear();
     }
-    else if (groupType == 8) // 4A
+
+    /* RDS processing */
+    if (newRDSgroup)
     {
-      /* Get CT and update dipslay */
-      if (SI4703_RDSClockTime(&actHour, &actMinute))
-        change = 1;
+      newRDSgroup = 0;
+      groupType = SI4703_RDSGetGroupType(); // Get RDS group type
+
+      if (groupType == 0) 
+      {
+        if (!validPS)  // if channelName not valid (None or loading)
+        {
+          channelName = SI4703_RDSProgrammeService();  // Get name of the tuned station
+
+          if (validPS) change = 1;
+        }
+      }
+      else if (groupType == 8)  // 4A = CT group
+      {       
+        /* Set timer: if we dont get CT in 4s since we received first 4A group -> wait for another CT burst */
+        if (firstCTgroup)
+        {
+          firstCTgroup = 0;
+          CTburst = 1;
+
+          TCNT1 = 0;
+          tim1_ovf_2s();
+          tim1_ovf_enable();
+          tim1Cycles = 0;
+        }
+
+        /* Get CT and update dipslay */
+        if (SI4703_RDSClockTime(&actHour, &actMinute)) 
+        {
+          CTburst = 0;
+          change = 1;
+
+          /* Wait: 8.4 * 6 = 50.4s for next CT group*/
+          tim1Cycles = 0;
+          TCNT1 = 0;
+          tim1_ovf_8s();
+          tim1_ovf_enable();
+        }
+      }
+
+      groupType = 99; // Reset group type
+    }
+
+    /* Sleep mode entry (IDLE) */
+    if (!CTburst && validPS)
+    {
+      //gpio_write_high(&PORTD, LED);
+      sleep_enable();
+      sleep_cpu();
+
+      //gpio_write_low(&PORTD, LED);
+      sleep_disable(); //after ATmega328P quits IDLE (IRQ, buttons)
     }
   }
 }
@@ -408,7 +464,6 @@ ISR(TIMER0_OVF_vect)
   {
     if (tim0Cycles >= TIM0_FREQ_OVF_NUM)
     {
-      // gpio_toggle(&PORTD, LED);
       tim0Cycles = 0;
 
       change = 1; // -> setFrequency()
@@ -434,20 +489,39 @@ ISR(TIMER1_OVF_vect)
 {
   tim1Cycles++;
 
-  /* Every 30 s update screen0 info */
-  if (tim1Cycles >= TIM1_OVF_NUM)
+  /* RDS CT watchdog: CT not detected -> wait aporximately 60s for another CT burst*/
+  if (CTburst && (tim1Cycles >= 2)) // 4,2s
   {
+    CTburst = 0;
+
+    tim1_ovf_disable();
+    tim1_stop();
     tim1Cycles = 0;
-    change = 1;
   }
-  /* Requested update */
-  if (updateInfo & (tim1Cycles >= 1)) // 2,1 s
+  /* Every 50 s after CT burst: leave IDLE mode to update CT and screen0 info */
+  else if (!CTburst && (tim1Cycles >= 6))
   {
-    updateInfo = 0;
+    CTburst = 1;
+    firstCTgroup = 1;
     change = 1;
 
-    tim1_ovf_8s(); // change timer ovf
+    if (strcmp(channelName, "none") == 0 || strcmp(channelName, "loading") == 0)
+    {
+      validPS = 0;
+    }
+
+    tim1_ovf_disable();
+    tim1_stop();
+    tim1Cycles = 0;
   }
+
+  /* Seek watchdog: if STC not set for 2s -> seekFail */
+  /*
+  else if (seek && (tim1Cycles >= 1))
+  {
+    // cannot control tim1 (tim1_ovf_disable, tim1Cycles = 0 ...)?
+  }
+  */
 }
 
 /* Interrupt service routine TIMER2 overflow */
@@ -460,6 +534,19 @@ ISR(TIMER2_OVF_vect)
 ISR(PCINT2_vect)
 {
   newD = PIND; // update current state of port D
+
+  // GPIO2 changed
+  if ((newD ^ oldD) & (1 << GPIO2))
+  {
+    // GPIO falling edge (active low)  1 \___ 0
+    if ((newD & (1 << GPIO2)) == 0)
+    {
+      gpio2 = 1;
+    }
+
+    oldD = newD;
+    return;
+  }
 
   if (debounceReady)
   {
@@ -489,7 +576,7 @@ ISR(PCINT2_vect)
     TCNT2 = 0;
     tim2_ovf_4ms();
     tim2_ovf_enable();
-  }
 
-  oldD = newD;
+    oldD = newD;
+  }
 }
