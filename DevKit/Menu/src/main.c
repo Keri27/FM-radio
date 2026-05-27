@@ -34,7 +34,7 @@ volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t CTburst = 0; // RDS clock time burst window opened/closed
 volatile uint8_t groupType = 99; // RDS group type
-//volatile uint8_t seek = 0;
+volatile uint8_t seekRequest = 1; // Prevents multiple seek event
 volatile uint8_t gpio2 = 0;
 
 const char* channelName = "loading";
@@ -140,12 +140,23 @@ int main(void)
 
   while (1)
   {
-    // Debounce: If timer overflowed or first cycle (PCINT)
+    /* Debounce: If timer overflowed or first cycle (PCINT) */
     if (debounceTimer == 1)
     {
       Debounce(&buttons[bttn_idx], Sample(bttn_idx));
 
-      // If any button pressed, debounce function finished and bttns have been released
+      /*
+      // If debounce function not finished: idle: wait for IRQ from timer 2
+      if (buttons[bttn_idx].debounceCount != 0)
+      {
+        sleep_enable();
+        sleep_cpu();
+
+        sleep_disable(); // after ATmega328P quits IDLE (IRQ, buttons)
+      }
+      */
+
+      // If any button pressed and debounce function finished
       if ((buttons[bttn_idx].stableState == 1) && (buttons[bttn_idx].debounceCount == 0))
       {
         change = 1; // enable change (freq, RDS, menu ...)
@@ -167,6 +178,11 @@ int main(void)
 
           longPress = 1;
         }
+        /* Prevent multiple seek change */
+        else if ((buttons[SEEK_IDX].stableState == 1) && (screen == 0))
+        {
+          seekRequest = 1;
+        }
       }
 
       // If any button released and debounce function finished
@@ -186,17 +202,6 @@ int main(void)
           change = 0;
         }
       }
-
-      /*
-      // If debounce function not finished: idle: wait for IRQ from timer 2
-      if (buttons[bttn_idx].debounceCount != 0)
-      {
-        sleep_enable();
-        sleep_cpu();
-
-        sleep_disable(); // after ATmega328P quits IDLE (IRQ, buttons)
-      }
-      */
       }
 
     /* User interface */
@@ -208,13 +213,17 @@ int main(void)
       if (screen == 0)
       {
         /* SEEK station */
-        if (buttons[SEEK_IDX].stableState == 1) // sometime seek runs out of time (timeout), but still manages to find the station -> not actual freq
+        if (seekRequest) // PS update few seconds after seek (RDS) used to reactivate seek fucntion when button pressed
         {
+          seekRequest = 0;
+
           if (SI4703_SeekUp())
           {
             seekFail = 0;
 
+            tim1Cycles = 0;
             SI4703_ResetPS();
+            
             channelName = "loading";
           }
           else
@@ -412,13 +421,18 @@ int main(void)
           if (validPS) change = 1;
         }
       }
-      else if (groupType == 8)  // 4A = CT group
+      else if (groupType == 8)  // 4 = CT group
       {       
-        /* Set timer: if we dont get CT in 4s since we received first 4A group -> wait for another CT burst */
+        /* Set timer (watchdog): if we dont get CT or PS in 6,3 s since we received first CT group -> wait for another CT burst */
         if (firstCTgroup)
         {
           firstCTgroup = 0;
+
           CTburst = 1;
+          if (strcmp(channelName, "none") == 0 || strcmp(channelName, "loading") == 0)
+          {
+            validPS = 0;
+          }
 
           TCNT1 = 0;
           tim1_ovf_2s();
@@ -431,12 +445,6 @@ int main(void)
         {
           CTburst = 0;
           change = 1;
-
-          /* Wait: 8.4 * 6 = 50.4s for next CT group*/
-          tim1Cycles = 0;
-          TCNT1 = 0;
-          tim1_ovf_8s();
-          tim1_ovf_enable();
         }
       }
 
@@ -444,13 +452,18 @@ int main(void)
     }
 
     /* Sleep mode entry (IDLE) */
-    if (!CTburst && validPS)
+    if (!CTburst && validPS && !change) // if no change available
     {
-      //gpio_write_high(&PORTD, LED);
+      /* Reset RDS watchdog */
+      tim1_ovf_disable();
+      tim1_stop();
+      tim1Cycles = 0;
+
+      gpio_write_high(&PORTD, LED);
       sleep_enable();
       sleep_cpu();
 
-      //gpio_write_low(&PORTD, LED);
+      gpio_write_low(&PORTD, LED);
       sleep_disable(); //after ATmega328P quits IDLE (IRQ, buttons)
     }
   }
@@ -489,38 +502,28 @@ ISR(TIMER1_OVF_vect)
 {
   tim1Cycles++;
 
-  /* RDS CT watchdog: CT not detected -> wait aporximately 60s for another CT burst*/
-  if (CTburst && (tim1Cycles >= 2)) // 4,2s
+  /* RDS watchdog: CT or PS not detected -> wait aporximately 60s for another CT burst*/
+  if ((CTburst || !validPS) && (tim1Cycles >= 3)) // 6,3s
   {
+    firstCTgroup = 1;
     CTburst = 0;
 
-    tim1_ovf_disable();
-    tim1_stop();
-    tim1Cycles = 0;
-  }
-  /* Every 50 s after CT burst: leave IDLE mode to update CT and screen0 info */
-  else if (!CTburst && (tim1Cycles >= 6))
-  {
-    CTburst = 1;
-    firstCTgroup = 1;
-    change = 1;
-
-    if (strcmp(channelName, "none") == 0 || strcmp(channelName, "loading") == 0)
+    if (!validPS) // If channelName == none -> display Spatny signal
     {
-      validPS = 0;
+      validPS = 1;
+      change = 1; 
     }
 
     tim1_ovf_disable();
     tim1_stop();
     tim1Cycles = 0;
   }
-
   /* Seek watchdog: if STC not set for 2s -> seekFail */
   /*
-  else if (seek && (tim1Cycles >= 1))
-  {
-    // cannot control tim1 (tim1_ovf_disable, tim1Cycles = 0 ...)?
-  }
+    else if (seek && (tim1Cycles >= 1))
+    {
+      // shouldnt control tim1 (tim1_ovf_disable, tim1Cycles = 0 ...)
+    }
   */
 }
 

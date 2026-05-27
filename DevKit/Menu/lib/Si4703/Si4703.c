@@ -492,7 +492,13 @@ void SI4703_ResetPS(void)
 {
 	psMask = 0; // erase mask
 	validPS = 0;
-	psCount = 0;
+	 
+	/* Set RDS watchodg */
+	TCNT1 = 0;
+	tim1_ovf_2s();
+	tim1_ovf_enable();
+
+	//psCount = 0;
 	
 	for (int i = 0; i < 8; i++)
 	{
