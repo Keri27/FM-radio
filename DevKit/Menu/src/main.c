@@ -34,7 +34,7 @@ volatile uint8_t longPress = 0;
 volatile uint8_t fastFreqChange = 0;
 volatile uint8_t CTburst = 0; // RDS clock time burst window opened/closed
 volatile uint8_t groupType = 99; // RDS group type
-volatile uint8_t seekRequest = 1; // Prevents multiple seek event
+volatile uint8_t seekRequest = 0; // Prevents multiple seek event
 volatile uint8_t gpio2 = 0;
 
 const char* channelName = "loading";
@@ -510,6 +510,7 @@ ISR(TIMER1_OVF_vect)
 
     if (!validPS) // If channelName == none -> display Spatny signal
     {
+      channelName = "none"; // In case no RDS group due to bad signal -> BLERB more than 0 in SI4703_RDSGetGroupType()
       validPS = 1;
       change = 1; 
     }

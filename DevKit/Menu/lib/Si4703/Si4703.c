@@ -460,6 +460,7 @@ const char *SI4703_RDSProgrammeService(void)
 		validPS = 1;
 		return programmeName;
 
+		/* Anti-dynamic PS */
 		/*
 		if (strcmp(programmeName, prevProgrammeName) == 0)
 		{
