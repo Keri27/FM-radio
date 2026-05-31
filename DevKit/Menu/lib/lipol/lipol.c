@@ -26,7 +26,8 @@ uint16_t ADC_Read(void)
     ADCSRA |= (1 << ADSC);
 
     // Wait for the conversion to complete (hardware clears ADSC)
-    while (ADCSRA & (1 << ADSC));
+    while (ADCSRA & (1 << ADSC))
+        ;
 
     // Return the 16-bit result (automatically combines ADCL and ADCH)
     return ADC;
@@ -35,31 +36,31 @@ uint16_t ADC_Read(void)
 /*
  * Non-linear Li-Po discharge curve (in mV).
  * 3300 - 4200 mV (0-100 %).
+ * Warning: This licp curve is wrong and needs to be fixed: device stays on 5% for more than 5h!
  */
-const uint16_t lipo_curve_mv[] = 
-{
-    3300, // 0%
-    3338, // 1%
-    3414, // 3%
-    3490, // 5%
-    3680, // 10%
-    3710, // 15%
-    3740, // 20%
-    3770, // 30%
-    3790, // 40%
-    3820, // 50%
-    3870, // 60%
-    3920, // 70%
-    3980, // 80%
-    4060, // 90%
-    4130, // 95 %
-    4200  // 100% (Fully charged)
+const uint16_t lipo_curve_mv[] =
+    {
+        3300, // 0%
+        3338, // 1%
+        3414, // 3%
+        3490, // 5%
+        3680, // 10%
+        3710, // 15%
+        3740, // 20%
+        3770, // 30%
+        3790, // 40%
+        3820, // 50%
+        3870, // 60%
+        3920, // 70%
+        3980, // 80%
+        4060, // 90%
+        4130, // 95 %
+        4200  // 100% (Fully charged)
 };
 
-const uint8_t lipo_curve_pct[] = 
-{
-    0, 1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100
-};
+const uint8_t lipo_curve_pct[] =
+    {
+        0, 1, 3, 5, 10, 15, 20, 30, 40, 50, 60, 70, 80, 90, 95, 100};
 
 /*
  * Calculates battery percentage

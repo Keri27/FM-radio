@@ -459,11 +459,11 @@ int main(void)
       tim1_stop();
       tim1Cycles = 0;
 
-      gpio_write_high(&PORTD, LED);
+      //gpio_write_high(&PORTD, LED);
       sleep_enable();
       sleep_cpu();
 
-      gpio_write_low(&PORTD, LED);
+      //gpio_write_low(&PORTD, LED);
       sleep_disable(); //after ATmega328P quits IDLE (IRQ, buttons)
     }
   }

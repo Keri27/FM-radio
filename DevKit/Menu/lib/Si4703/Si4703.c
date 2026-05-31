@@ -71,7 +71,7 @@ bool SI4703_Init()
 	//SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_DSMUTE);
 
 	/* Set Force Mode for single speaker */
-	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO);
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO); // not essential (we set MONO/STEREO in main)
 
 	/* Set RDS mode Verbose (BLER) */
 	SI4703_Regs[REG_POWERCFG] |= MASK_RDSM;
