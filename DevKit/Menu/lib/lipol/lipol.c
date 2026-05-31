@@ -5,16 +5,15 @@
 /* Initializes the ADC module */
 void ADC_Init(void)
 {
-    // Interní reference 1.1V
+    // Intern reference 1.1V
     ADMUX = (1 << REFS1) | (1 << REFS0);
 
-    // Zapnutí ADC a nastavení děličky na 64 (8 MHz / 64 = 125 kHz)
+    // Switch ON ADC and set prescaler to 64 (8 MHz / 64 = 125 kHz)
     ADCSRA = (1 << ADEN) | (1 << ADPS2) | (1 << ADPS1);
 }
 
 /*
  * Reads the analog value from a specific channel
- * Input: channel number (e.g., 6 for ADC6)
  * Output: 10-bit raw ADC value (0-1023)
  */
 uint16_t ADC_Read(void)
@@ -22,20 +21,16 @@ uint16_t ADC_Read(void)
     // Clear old channel bits and set the new one (preserve REFS bits)
     ADMUX = (ADMUX & 0xF0) | (ADC_BATT & 0x0F);
 
-    // Start the conversion
     ADCSRA |= (1 << ADSC);
 
-    // Wait for the conversion to complete (hardware clears ADSC)
-    while (ADCSRA & (1 << ADSC))
-        ;
+    // Wait for the conversion to complete
+    while (ADCSRA & (1 << ADSC));
 
-    // Return the 16-bit result (automatically combines ADCL and ADCH)
     return ADC;
 }
 
 /*
  * Non-linear Li-Po discharge curve (in mV).
- * 3300 - 4200 mV (0-100 %).
  * Warning: This licp curve is wrong and needs to be fixed: device stays on 5% for more than 5h!
  */
 const uint16_t lipo_curve_mv[] =
@@ -73,7 +68,6 @@ uint8_t getBatteryPercentage(uint16_t rawADC)
     uint32_t pinVoltage = ((uint32_t)rawADC * VREF) / 1024;
 
     // 2. Calculate actual battery voltage (divider ratio = 4.3)
-    // Note: Using * 43 / 10 instead of * 4.3 to keep it 100% integer math!
     uint32_t batVoltage = (pinVoltage * 43U) / 10U;
 
     // 3. Out of bounds protection

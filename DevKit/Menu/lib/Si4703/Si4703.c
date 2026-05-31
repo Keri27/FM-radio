@@ -513,7 +513,7 @@ void SI4703_ResetPS(void)
 }
 
 /* 
- * Fetches the Clock Time from RDS (group 4A)
+ * Clock Time from RDS (group 4A)
  * Returns true if time was successfully updated
  */
 bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
@@ -534,7 +534,7 @@ bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 	uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
 	uint8_t utc_minute = (blockD >> 6) & 0x3F;
 
-	// Sanity check: discard obviously corrupted data
+	// Discard obviously corrupted data
 	if (utc_hour > 23 || utc_minute > 59)
 	{
 		return false;
@@ -548,7 +548,7 @@ bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
 		offset = -offset;
 	}
 
-	// 3. Robust math using total minutes (handles midnight and timezone wraps)
+	// 3. Using total minutes (handles midnight and timezone wraps)
 	// Offset is in half-hour increments
 	int16_t total_minutes = (int16_t)(utc_hour * 60) + utc_minute + (offset * 30);
 
