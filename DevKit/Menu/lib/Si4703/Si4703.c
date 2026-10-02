@@ -1,0 +1,635 @@
+﻿/*
+ * SI4703.c
+ *
+ * Created: 2018-05-29
+ * Author: kiki
+ * Reference: https://github.com/eziya/AVR_SI4703/tree/master
+ * 
+ */ 
+
+#ifndef F_CPU
+#define F_CPU	8000000L
+#endif
+
+#include <util/delay.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "SI4703.h"
+#include "128A_TWI.h"
+#include "timer.h"
+
+//#define PS_CYCLE_COUNT 32 // number of disagreements to end SI4703_RDSProgrammeService()
+
+_radioInfo radioInfo;
+uint16_t SI4703_Regs[16] = {0,};
+
+char programmeName[9] = "none"; // 8 char + ending char "\0"
+char programmeBuffer[9] = "";
+char prevProgrammeName[9] = "";
+
+uint8_t psMask; // programme service segment mask
+uint8_t validPS = 0;
+uint8_t psCount = 0;
+
+static bool SI4703_Wait(void);
+static bool SI4703_RxRegs(void);
+static bool SI4703_TxRegs(void);
+static void SI4703_Reset(void);
+
+bool SI4703_Init()
+{			
+	/* OUTPUT SDIO, RST */
+	SI4703_DDRB |= _BV(SI4703_RST);
+	SI4703_DDRC |= _BV(SI4703_SCLK) | _BV(SI4703_SDIO);
+		
+	/* SDIO Low */	
+	SI4703_PORTC &= ~_BV(SI4703_SDIO);
+		
+	/* SI4703 Reset */
+	SI4703_Reset();
+	
+	/* Init TWI(I2C) */
+	TWI_Init();
+	
+	if(!SI4703_RxRegs()) return false;
+	
+	/* Enable Oscillator  */
+	SI4703_Regs[REG_TEST1] = 0x8100;		/* AN230 page 12, why 0x8100 ??? */		
+	if(!SI4703_TxRegs()) return false;
+	
+	/* Delay minimum 500 ms, AN230 page 12*/
+	_delay_ms(500);
+	
+	if(!SI4703_RxRegs()) return false;
+	
+	/* Power-up sequence */
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_DMUTE);
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_ENABLE);
+		
+	/* Set soft mute (enabled as default) */
+	//SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_DSMUTE);
+
+	/* Set Force Mode for single speaker */
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO); // not essential (we set MONO/STEREO in main)
+
+	/* Set RDS mode Verbose (BLER) */
+	SI4703_Regs[REG_POWERCFG] |= MASK_RDSM;
+
+	/* Set Seek Mode as Stop at band limit (disabled as default) */
+	/*SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SKMODE);*/
+
+	/* Set SEEKUP bit */
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP);
+
+	/* Enable RDS Interrupt */
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDSIEN);
+
+	/* Enable Seek/Tune Complete Interrupt */
+	//SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_STCIEN);
+
+	/* Enable RDS */
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_RDS);
+	
+	/* Set De-Emphasis 50us (Europe) */
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_DE);
+
+	/* Set GPIO 2 STC/RDS interrupt */
+	SI4703_Regs[REG_SYSCONFIG1] &= ~(MASK_GPIO2);
+	SI4703_Regs[REG_SYSCONFIG1] |= (1 << IDX_GPIO2);
+
+	/* Set Band as 00 (Europe) */
+	SI4703_Regs[REG_SYSCONFIG2] &= ~((1 << IDX_BAND0) | (1 << IDX_BAND1));
+
+	/* Set Space as 01 (Europe) */
+	SI4703_Regs[REG_SYSCONFIG2] |= (1 << IDX_SPACE0);
+			
+	/* Set Volume as 0x0F */
+	SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0; // Clear volume bits (0000)
+	SI4703_Regs[REG_SYSCONFIG2] |= 0x7; // Set volume to max (0111)
+	
+	/* Set Seek Threshold (RSSI), Recommended 0x19 */
+	SI4703_Regs[REG_SYSCONFIG2] &= ~(MASK_SEEKTH);
+	SI4703_Regs[REG_SYSCONFIG2] |= (0x19 << 8); // max: 125
+	
+	/* Set SKSNR (SNR treshold), Recommended 0x04 */
+	SI4703_Regs[REG_SYSCONFIG3] &= ~(MASK_SKSNR);	
+	SI4703_Regs[REG_SYSCONFIG3] |= (0x04 << 4);	// max: 7
+	
+	/* Set SKCNT (impulse noice treshold), Recommended 0x08 */
+	SI4703_Regs[REG_SYSCONFIG3] &= ~(MASK_SKCNT);	
+	SI4703_Regs[REG_SYSCONFIG3] |= 0x08; // max: 15
+
+	if (!SI4703_TxRegs()) return false;
+
+	/* Wait Powerup Time(110ms), Datasheet page 13 */
+	_delay_ms(110);
+	
+	return true;
+}
+
+bool SI4703_SetVolume(uint8_t volume)
+{
+	if(volume > 15) volume = 15;
+	
+	if(!SI4703_RxRegs()) return false;
+	
+	/* Set Volume */
+	SI4703_Regs[REG_SYSCONFIG2] &= 0xFFF0;
+	SI4703_Regs[REG_SYSCONFIG2] |= volume;
+	
+	if(!SI4703_TxRegs()) return false;
+	
+	return true;
+}
+
+bool SI4703_SetMono(bool mono)
+{
+	if(!SI4703_RxRegs()) return false;
+	
+	/* Set Mono or Stereo */
+	if(mono)
+	{
+		SI4703_Regs[REG_POWERCFG] |= (1 << IDX_MONO);		
+	}
+	else
+	{
+		SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_MONO);
+	}
+	
+	if(!SI4703_TxRegs()) return false;
+	
+	return true;
+}
+
+bool SI4703_SetMute(bool mute)
+{
+	if(!SI4703_RxRegs()) return false;
+	
+	/* Set Mute */
+	if(mute)
+	{
+		SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_DMUTE);		
+	}
+	else
+	{
+		SI4703_Regs[REG_POWERCFG] |= (1 << IDX_DMUTE);
+	}
+	
+	if(!SI4703_TxRegs()) return false;
+	
+	return true;
+}
+
+float SI4703_GetFreq()
+{
+	float freq;
+	
+	if(!SI4703_RxRegs()) return false;
+	
+	uint16_t channel = SI4703_Regs[REG_READCHAN] & MASK_READCHAN;
+	
+	/* Frequency (MHz) = (Spacing (kHz) x Channel) + Bottom of band (MHz) */
+	freq = (0.1 * channel) + MIN_FREQ;	/* Band range is between 87.5 and 108MHz, Channel Space is 0.1MHz for Europe */
+		
+	return freq;
+}
+
+bool SI4703_SetFreq(float freq)
+{
+	//if(freq < MIN_FREQ) freq = MAX_FREQ; // implemented in main (visualization)
+	//if(freq > MAX_FREQ) freq = MIN_FREQ;
+	
+	/* Channel = (Frequency - Bottom of band) / Spacing */
+	uint16_t channel = (freq - MIN_FREQ) / 0.1;
+	
+	//if(!SI4703_RxRegs()) return false;
+	
+	/* Update frequency */
+	SI4703_Regs[REG_CHANNEL] &= 0xFE00;
+	SI4703_Regs[REG_CHANNEL] |= channel;
+	SI4703_Regs[REG_CHANNEL] |= (1 << IDX_TUNE);
+	
+	if(!SI4703_TxRegs()) return false;	
+	
+	/* Wait STC bit set & clear */
+	if(!SI4703_Wait()) return false;
+	
+	return true;
+}
+
+bool SI4703_SeekUp()
+{
+	if(!SI4703_RxRegs()) return false; // neccessary?
+	
+	/* Set SEEKUP + SEEK bit */
+	//SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEKUP); // if not using SeekDown, its sufficient to set it only once (Init function) 
+	SI4703_Regs[REG_POWERCFG] |= (1 << IDX_SEEK);
+	
+	if(!SI4703_TxRegs()) return false;
+	
+	/* Wait STC bit set & clear */
+	if(!SI4703_Wait()) return false;
+	
+	return true;
+}
+
+bool SI4703_SeekClear() // not used (GPIO2)
+{
+	uint8_t timeout = 0;
+
+	if (!SI4703_RxRegs()) return false;
+
+	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
+	if (!SI4703_TxRegs()) return false;
+
+	while (1)
+	{
+		if (!SI4703_RxRegs()) return false;
+
+		if ((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) == 0) break;
+		_delay_ms(60); /* Seek or Tune Time Delay */
+
+		timeout++;
+		if (timeout > 5) return false;
+	}
+
+	return true;
+}
+
+uint8_t SI4703_GetRSSI()
+{
+	//if (!SI4703_RxRegs()) return false; // Uncomment if NOT used earlier (SeekUp)
+	uint8_t rssi = SI4703_Regs[REG_STATUSRSSI] & MASK_RSSI;
+	return rssi;
+}
+
+uint8_t SI4703_GetStereo() // stereo status indicator
+{
+	// if (!SI4703_RxRegs()) return false; // Uncomment if NOT used earlier (SeekUp)
+	uint8_t stereo = (SI4703_Regs[REG_STATUSRSSI] & (1 << IDX_ST)) != 0;
+	return stereo;
+
+	// var.B: uint8_t stereo = (SI4703_Regs[REG_STATUSRSSI] >> IDX_ST) & 0x01;
+}
+
+bool SI4703_CheckRDSReady()
+{
+	if(!SI4703_RxRegs()) return false;
+	
+	return (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSR) >> 15);
+}
+
+static bool SI4703_Wait(void)
+{
+	uint8_t timeout = 0;
+	uint8_t seekFail = 0;
+
+	/* Wait for STC bit to be set*/
+	while(1)
+	{
+		if (!SI4703_RxRegs()) return false;
+
+		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) != 0) break;
+		if (SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) 
+		{
+			seekFail = 1;
+			break;
+		}
+		_delay_ms(80);	/* Seek or Tune Time Delay */
+		
+		timeout++;
+		if(timeout > 20) return false;
+	}
+	
+	timeout = 0;
+	_delay_ms(20);
+
+	SI4703_Regs[REG_POWERCFG] &= ~(1 << IDX_SEEK);
+	SI4703_Regs[REG_CHANNEL] &= ~(1 << IDX_TUNE);
+	if (!SI4703_TxRegs()) return false;
+
+	/* Wait for STC bit to be reset*/
+	while(1)
+	{
+		if(!SI4703_RxRegs()) return false;
+		if((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) == 0) break;
+		_delay_ms(60);	/* Seek or Tune Time Delay */
+		
+		timeout++;
+		if(timeout > 10) return false;
+	}
+
+	return !seekFail; // if seekFail return false
+}
+
+static bool SI4703_RxRegs()
+{
+	uint8_t buffer[32];
+	
+	if(!TWI_RxBuffer(SI4703_DEVICEADDR, buffer, sizeof(buffer))) return false;
+	
+	/* Cautions!!! Si4703 returns data from register 0x0A */
+	for(int i=0; i < 6; i++)
+	{
+		SI4703_Regs[10+i] = (buffer[i*2] << 8) | buffer[i*2+1];		
+	}
+	
+	for(int i=0; i < 10; i++)
+	{
+		SI4703_Regs[i] = (buffer[12+2*i] << 8) | buffer[13+2*i];	
+	}		
+	
+	return true;
+}
+
+static bool SI4703_TxRegs()
+{
+	uint8_t buffer[12];
+		
+	buffer[0] = SI4703_Regs[REG_POWERCFG] >> 8;
+	buffer[1] = SI4703_Regs[REG_POWERCFG] & 0xFF;
+	buffer[2] = SI4703_Regs[REG_CHANNEL] >> 8;
+	buffer[3] = SI4703_Regs[REG_CHANNEL] & 0xFF;
+	buffer[4] = SI4703_Regs[REG_SYSCONFIG1] >> 8;
+	buffer[5] = SI4703_Regs[REG_SYSCONFIG1] & 0xFF;
+	buffer[6] = SI4703_Regs[REG_SYSCONFIG2] >> 8;
+	buffer[7] = SI4703_Regs[REG_SYSCONFIG2] & 0xFF;
+	buffer[8] = SI4703_Regs[REG_SYSCONFIG3] >> 8;
+	buffer[9] = SI4703_Regs[REG_SYSCONFIG3] & 0xFF;
+	buffer[10] = SI4703_Regs[REG_TEST1] >> 8;
+	buffer[11] = SI4703_Regs[REG_TEST1] & 0xFF;
+	
+	if(!TWI_TxBuffer(SI4703_DEVICEADDR, buffer, sizeof(buffer))) return false;
+	
+	return true;
+}
+
+/* RDS: PI - station identification */
+/*
+const char* SI4703_RDSProgrammeName() // if group B you can also check the block C
+{
+	// BLERA: if 3 or more mistakes (BLERA == 10 (2) 3-4 mistakes, 11 (3) 5+ mistakes), unreliable data
+	if ((SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >= 2)
+	{
+		return "Spatny signal";
+		// or find out the station name from Program service
+	}
+
+	// if(!SI4703_RxRegs()) return false; // not needed if RxRegs used right before this function
+	uint16_t PIcode = SI4703_Regs[REG_RDSA];
+
+	// Debug: show raw programmCode in hex //
+	//char debugStr[10];
+	//return itoa(PIcode, debugStr, 16);
+
+	switch (PIcode)
+	{
+
+	// 1st num/1st 4 bits: Country code: CZ - 2
+	// 2nd num: Type of coverage: 0 - local, 2 - national, 3 - interregional
+	// 3rd + 4th: Program ref num: 5B - Krokodyl (only in CZ!)
+
+	// Jihomoravsky kraj (Brno)
+	case 0x23a2: return "Krokodyl";
+	case 0x232F: return "Radiozurnal";
+	case 0x2203: return "Impuls";
+	case 0x2204: return "Evropa 2";
+	case 0x2205: return "Frekvence 1";
+	case 0x20BA: return "City Brno";
+
+	// Pardubicky kraj (Pardubice)
+
+	default: return "Neznama st.";
+	}
+}
+*/
+
+uint8_t SI4703_RDSGetGroupType(void)
+{
+	// SI4703_RxRegs(); // this fucntion is used immediately after SI4703_CheckRDSReady() - using it again would lead to a data loss
+
+	// Check Block Error Rate (BLER) B
+	uint8_t blerB = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	if (blerB > 0)
+		return 99; // there is no group 99
+
+	uint16_t blockB = SI4703_Regs[REG_RDSB];
+	uint8_t groupType = (blockB >> 11) & 0x1F;
+
+	return groupType;
+}
+
+/* Name of the tuned programme (2B in 4 groups) */
+const char *SI4703_RDSProgrammeService(void)
+{
+	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+
+	if (blerD >= 2) // if there are 3+ fixed errors (accept 1 or 2 fixed errors)
+	{
+		return "none"; // weak signal
+	}
+
+	uint16_t blockB = SI4703_Regs[REG_RDSB]; // blerB already tested in SI4703_RDSGetGroupType()
+	uint8_t index = blockB & 0x03; // received character index
+
+	uint16_t blockD = SI4703_Regs[REG_RDSD];
+	char char1 = (blockD >> 8) & 0xFF;	// upper byte
+	char char2 = blockD & 0x00FF;		// bottom byte
+
+	/* Double validation - we must get the same characters twice in a row */
+	if ((programmeBuffer[index * 2] == char1) && (programmeBuffer[index * 2 + 1] == char2))
+	{
+		programmeName[index * 2] = char1;	  // first letter: 0 * 2 = 0
+		programmeName[index * 2 + 1] = char2; // second letter: 0 * 2 + 1 = 1
+
+		psMask |= (1 << index); // check-list (carries stored segments (4))
+	}
+	else
+	{
+		programmeBuffer[index * 2] = char1;
+		programmeBuffer[index * 2 + 1] = char2;
+
+		psMask &= ~(1 << index); // reset psMask
+		//psMask = 0; // anti-DynamicPS (not working properly in bad conditions)
+	}
+
+
+	if (psMask == 0x0F) 
+	{
+		validPS = 1;
+		return programmeName;
+
+		/* Anti-dynamic PS */
+		/*
+		if (strcmp(programmeName, prevProgrammeName) == 0)
+		{
+			validPS = 1;
+			return programmeName;
+		}
+		else 
+		{
+			if (psCount >= PS_CYCLE_COUNT)
+			{
+				validPS = 1;
+			}
+
+			strcpy(prevProgrammeName, programmeName);
+
+			psCount++;
+			return "none";
+		}
+		*/
+	}
+	else  // in case we dont have the whole programme name
+	{
+		return "none";
+	}
+
+}
+
+/* Resets variables from SI4703_RDSProgrammeService() function*/
+void SI4703_ResetPS(void)
+{
+	psMask = 0; // erase mask
+	validPS = 0;
+	 
+	/* Set RDS watchodg */
+	TCNT1 = 0;
+	tim1_ovf_2s();
+	tim1_ovf_enable();
+
+	//psCount = 0;
+	
+	for (int i = 0; i < 8; i++)
+	{
+		programmeName[i] = ' '; // erase previous text
+		programmeBuffer[i] = ' ';
+		prevProgrammeName[i] = ' ';
+	}
+	programmeName[8] = '\0'; // add ending char
+	programmeBuffer[8] = '\0';
+	prevProgrammeName[8] = '\0';
+}
+
+/* 
+ * Clock Time from RDS (group 4A)
+ * Returns true if time was successfully updated
+ */
+bool SI4703_RDSClockTime(uint8_t *hour, uint8_t *minute)
+{
+	uint8_t blerC = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
+	uint8_t blerD = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+
+	// Zero-tolerance for errors in clock data
+	if ((blerC > 0) || (blerD > 0))
+	{
+		return false;
+	}
+
+	uint16_t blockC = SI4703_Regs[REG_RDSC];
+	uint16_t blockD = SI4703_Regs[REG_RDSD];
+
+	// 1. Extract raw UTC time across Block C and D
+	uint8_t utc_hour = ((blockC & 0x0001) << 4) | ((blockD >> 12) & 0x0F);
+	uint8_t utc_minute = (blockD >> 6) & 0x3F;
+
+	// Discard obviously corrupted data
+	if (utc_hour > 23 || utc_minute > 59)
+	{
+		return false;
+	}
+
+	// 2. Decode Local Time Offset from Block D (6 bits total)
+	uint8_t offset_bits = blockD & 0x3F;
+	int8_t offset = offset_bits & 0x1F;
+	if (offset_bits & 0x20) // Bit 5 is the negative sign
+	{
+		offset = -offset;
+	}
+
+	// 3. Using total minutes (handles midnight and timezone wraps)
+	// Offset is in half-hour increments
+	int16_t total_minutes = (int16_t)(utc_hour * 60) + utc_minute + (offset * 30);
+
+	// Handle wrap-around for negative results (yesterday) or overflows (tomorrow)
+	while (total_minutes < 0)
+		total_minutes += 1440;
+	total_minutes %= 1440;
+
+	uint8_t local_hour = total_minutes / 60;
+	uint8_t local_minute = total_minutes % 60;
+
+	*hour = local_hour;
+	*minute = local_minute;
+	return true;
+}
+
+static void SI4703_Reset(void)
+{
+	SI4703_PORTB &= ~(1 << SI4703_RST);
+	_delay_ms(10); /* Min 100us */
+	SI4703_PORTB |= (1 << SI4703_RST);
+	_delay_ms(10); /* Min 100us */
+}
+
+bool SI4703_UpdateRadioInfo()
+{
+	if (!SI4703_RxRegs())
+		return false;
+
+	radioInfo.PartNumber = (SI4703_Regs[REG_POWERCFG] & MASK_PN) >> 12;
+	radioInfo.ManufactID = (SI4703_Regs[REG_POWERCFG] & MASK_MFGID);
+	radioInfo.Revision = (SI4703_Regs[REG_CHIPID] & MASK_REV) >> 10;
+	radioInfo.Device = (SI4703_Regs[REG_CHIPID] & MASK_DEV) >> 6;
+	radioInfo.Firmware = (SI4703_Regs[REG_CHIPID] & MASK_FIRMWARE);
+	radioInfo.DSmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DSMUTE) >> 15);
+	radioInfo.Dmute = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DMUTE) >> 14);
+	radioInfo.Mono = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_MONO) >> 13);
+	radioInfo.RDSMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_RDSM) >> 11);
+	radioInfo.SeekMode = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SKMODE) >> 10);
+	radioInfo.SeekUp = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEKUP) >> 9);
+	radioInfo.Seek = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_SEEK) >> 8);
+	radioInfo.Disable = (bool)((SI4703_Regs[REG_POWERCFG] & MASK_DISABLE) >> 6);
+	radioInfo.Enable = (bool)(SI4703_Regs[REG_POWERCFG] & MASK_ENABLE);
+	radioInfo.Tune = (bool)((SI4703_Regs[REG_CHANNEL] & MASK_TUNE) >> 15);
+	radioInfo.Channel = (SI4703_Regs[REG_CHANNEL] & MASK_CHAN);
+	radioInfo.RDSIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDSIEN) >> 15);
+	radioInfo.STCIntEnable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_STCIEN) >> 14);
+	radioInfo.RDS = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_RDS) >> 12);
+	radioInfo.DeEmpahsis = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_DE) >> 11);
+	radioInfo.AGCDisable = (bool)((SI4703_Regs[REG_SYSCONFIG1] & MASK_AGCD) >> 10);
+	radioInfo.BlendLevelAdjust = (SI4703_Regs[REG_SYSCONFIG1] & MASK_BLNDADJ) >> 6;
+	radioInfo.GPIO3 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO3) >> 4;
+	radioInfo.GPIO2 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO2) >> 2;
+	radioInfo.GPIO1 = (SI4703_Regs[REG_SYSCONFIG1] & MASK_GPIO1);
+	radioInfo.SeekThreshold = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SEEKTH) >> 8;
+	radioInfo.BandSelect = (SI4703_Regs[REG_SYSCONFIG2] & MASK_BAND) >> 6;
+	radioInfo.ChannelSpace = (SI4703_Regs[REG_SYSCONFIG2] & MASK_SPACE) >> 4;
+	radioInfo.Volume = (SI4703_Regs[REG_SYSCONFIG2] & MASK_VOLUME);
+	radioInfo.SoftmuteRate = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTER) >> 14;
+	radioInfo.SoftmuteAttenuation = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SMUTEA) >> 12;
+	radioInfo.ExtendedVolumeRange = (bool)((SI4703_Regs[REG_SYSCONFIG3] & MASK_VOLEXT) >> 8);
+	radioInfo.SNRThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKSNR) >> 4;
+	radioInfo.ImpulseThreshold = (SI4703_Regs[REG_SYSCONFIG3] & MASK_SKCNT);
+	radioInfo.XOSCEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_XOSCEN) >> 15);
+	radioInfo.AudioHiZEnable = (bool)((SI4703_Regs[REG_TEST1] & MASK_AHIZEN) >> 14);
+	radioInfo.RDSReady = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSR) >> 15);
+	radioInfo.SeekTuneComplete = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_STC) >> 14);
+	radioInfo.SeekFailBandLimit = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_SFBL) >> 13);
+	radioInfo.AFCRail = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_AFCRL) >> 12);
+	radioInfo.RDSSynchronized = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_RDSS) >> 11);
+	radioInfo.RDSBlockAError = (SI4703_Regs[REG_STATUSRSSI] & MASK_BLERA) >> 9;
+	radioInfo.Stereo = (bool)((SI4703_Regs[REG_STATUSRSSI] & MASK_ST) >> 8);
+	radioInfo.RSSI = (SI4703_Regs[REG_STATUSRSSI] & MASK_RSSI);
+	radioInfo.RDSBlockBError = (SI4703_Regs[REG_READCHAN] & MASK_BLERB) >> 14;
+	radioInfo.RDSBlockCError = (SI4703_Regs[REG_READCHAN] & MASK_BLERC) >> 12;
+	radioInfo.RDSBlockDError = (SI4703_Regs[REG_READCHAN] & MASK_BLERD) >> 10;
+	radioInfo.ReadChannel = (SI4703_Regs[REG_READCHAN] & MASK_READCHAN);
+	radioInfo.RDSA = SI4703_Regs[REG_RDSA];
+	radioInfo.RDSB = SI4703_Regs[REG_RDSB];
+	radioInfo.RDSC = SI4703_Regs[REG_RDSC];
+	radioInfo.RDSD = SI4703_Regs[REG_RDSD];
+
+	return true;
+}
