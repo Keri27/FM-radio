@@ -397,13 +397,17 @@ int main(void)
     {
       gpio2 = 0;
 
-      if (SI4703_CheckRDSReady())
+      if (SI4703_CheckRDSReady()) 
       {
         newRDSgroup = 1;
-      }
-
+      } 
+      /*
+      else 
+      {
       // seek = 0;
       // SI4703_SeekClear();
+      }
+      */
     }
 
     /* RDS processing */
